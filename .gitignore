@@ -213,4 +213,5 @@ ModelManifest.xml
 
 #custom
 *sln
-*vsxproj
+*.vcxproj
+*.filters
