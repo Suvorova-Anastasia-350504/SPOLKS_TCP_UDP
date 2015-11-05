@@ -212,6 +212,6 @@ _Pvt_Extensions/
 ModelManifest.xml
 
 #custom
-*sln
+*.sln
 *.vcxproj
-*.filters
+*.vcxproj.filters
