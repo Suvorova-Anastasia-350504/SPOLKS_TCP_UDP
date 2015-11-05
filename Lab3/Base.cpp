@@ -152,7 +152,7 @@ Package* Base::ReceiveRawData(SOCKET socket, int size, int flags)
 
 Package* Base::ReceiveRawDataFrom(SOCKET socket, sockaddr* from, int size, int flags)
 {
-    auto len = sizeof(*from);
+    auto len = int(sizeof(*from));
 	auto result = recvfrom(socket, buffer, size, flags, from, &len);
 	CheckRecvResult(result);
 	buffer[result] = '\0';
