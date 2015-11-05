@@ -20,7 +20,6 @@ void UDPServer::Init()
 void UDPServer::ProcessTCPClients()
 {
 	Server::TryToAddClient(this->clients.size() == 0 && this->udpClients.size() == 0);
-	Server::RemoveDisconnected();
 	Server::SendFileParts();
 }
 

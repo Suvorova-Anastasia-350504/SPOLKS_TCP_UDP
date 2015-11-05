@@ -54,7 +54,6 @@ void Server::Run()
 	while (true)
 	{
 		TryToAddClient(this->clients.size() <= 0);
-		//RemoveDisconnected();
 		SendFileParts();
 	}
 }
@@ -97,7 +96,7 @@ void Server::RemoveClient(vector<CLIENT_INFO>::iterator& iter)
 	clientInfo->second->close();
 	shutdown(clientInfo->first, SD_BOTH);
 	closesocket(clientInfo->first);
-	this->clients.erase(iter);
+	iter = this->clients.erase(iter);
 }
 
 void Server::SendFileParts()
@@ -106,48 +105,20 @@ void Server::SendFileParts()
 	auto count = select(FD_SETSIZE, NULL, &clients, NULL, new timeval());
 	if (count > 0)
 	{
-		auto first = this->clients.begin();
-		auto last = this->clients.end();
-		for (auto i = 0; i < clients.fd_count; i++)
+		for (auto client = this->clients.begin(); client != this->clients.end(); ++client)
 		{
-			auto socket = clients.fd_array[i];
-			auto iter = find_if(first, last,
-				[&](CLIENT_INFO const pair)
+			if (FD_ISSET((*client)->first, &clients) > 0)
 			{
-				return (*pair).first == socket;
-			});
-			auto clientInfo = *iter;
-			try {
-				SendBlock(clientInfo);
+				try {
+					SendBlock(*client);
+				}
+				catch (runtime_error e) {
+					cout << e.what() << endl;
+					RemoveClient(client);
+					cout << CLIENTS_ONLINE;
+					if (client == this->clients.end()) break;
+				}
 			}
-			catch (runtime_error e) {
-				cout << e.what() << endl;
-				RemoveClient(iter);
-				cout << CLIENTS_ONLINE;
-			}
-		}
-	}
-	FD_ZERO(&clients);
-}
-
-void Server::RemoveDisconnected()
-{
-	auto clients = this->clientsSet;
-	if (select(FD_SETSIZE, NULL, NULL, &clients, new timeval()))
-	{
-		auto first = this->clients.begin();
-		auto last = this->clients.end();
-		for (auto i = 0; i < clients.fd_count; i++)
-		{
-			auto socket = clients.fd_array[i];
-			auto iter = find_if(first, last,
-				[&](CLIENT_INFO const pair)
-			{
-				return (*pair).first == socket;
-			});
-			auto clientInfo = *iter;
-			RemoveClient(iter);
-			cout << CLIENTS_ONLINE;
 		}
 	}
 	FD_ZERO(&clients);

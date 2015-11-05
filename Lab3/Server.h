@@ -19,7 +19,6 @@ protected:
 	void TryToAddClient(bool wait = false);
 	void RemoveClient(vector<CLIENT_INFO>::iterator& iter);
 	virtual void SendFileParts();
-	void RemoveDisconnected();
 	SOCKET CheckForNewConnection(bool wait = false);
 	void SendBlock(CLIENT_INFO clientInfo);
 
