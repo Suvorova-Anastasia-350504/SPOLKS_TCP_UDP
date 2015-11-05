@@ -48,7 +48,7 @@ fpos_t UDPClient::GetNumber(Package *package)
 	auto packageSize = package->size - UDP_NUMBER_SIZE;
 	for (fpos_t i = 0xFF, j = 0; j < UDP_NUMBER_SIZE - 1; j++, i <<= 8)
 	{
-		auto byte = unsigned char(package->data[packageSize + j]);
+        auto byte = (unsigned char)(package->data[packageSize + j]);
 		result += (byte << j*8);
 	}
 	return result;

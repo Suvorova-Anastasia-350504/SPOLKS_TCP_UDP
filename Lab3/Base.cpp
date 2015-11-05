@@ -63,13 +63,13 @@ sockaddr_in* Base::CreateAddressInfo(string address, unsigned int port)
 	auto addressInfo = new sockaddr_in();
 	addressInfo->sin_family = AF_INET;
 	addressInfo->sin_port = htons(port);
-	auto addrinfo = new struct addrinfo();
-	addrinfo->ai_family = AF_INET;
-	if (getaddrinfo(address.c_str(), NULL, addrinfo, &addrinfo) != 0)
+    auto saddrinfo = new struct addrinfo();
+    saddrinfo->ai_family = AF_INET;
+    if (getaddrinfo(address.c_str(), NULL, saddrinfo, &saddrinfo) != 0)
 	{
 		throw runtime_error(EX_WRONG_IP);
 	}
-	addressInfo->sin_addr = ((sockaddr_in*)addrinfo->ai_addr)->sin_addr;
+    addressInfo->sin_addr = ((sockaddr_in*)saddrinfo->ai_addr)->sin_addr;
 	//inet_pton(AF_INET, address.c_str(), &(addressInfo->sin_addr.s_addr));
 	return addressInfo;
 }
@@ -152,7 +152,7 @@ Package* Base::ReceiveRawData(SOCKET socket, int size, int flags)
 
 Package* Base::ReceiveRawDataFrom(SOCKET socket, sockaddr* from, int size, int flags)
 {
-	int len = sizeof(*from);
+    auto len = sizeof(*from);
 	auto result = recvfrom(socket, buffer, size, flags, from, &len);
 	CheckRecvResult(result);
 	buffer[result] = '\0';

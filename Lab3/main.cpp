@@ -1,5 +1,3 @@
-#include "Server.h"
-#include "Client.h"
 #include "UDPServer.h"
 #include "UDPClient.h"
 
