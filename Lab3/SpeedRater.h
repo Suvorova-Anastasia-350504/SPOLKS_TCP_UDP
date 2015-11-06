@@ -1,12 +1,13 @@
 #pragma once
 
 #include <chrono>
+#include <ctime>
 
 using namespace std::chrono;
 
 class SpeedRater
 {	
-	time_point<steady_clock> beginTime;
+    high_resolution_clock::time_point beginTime;
 	long long startPosition;
 	
 	void Start();

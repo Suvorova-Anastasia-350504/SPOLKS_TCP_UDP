@@ -155,7 +155,7 @@ Package* Base::ReceiveRawDataFrom(SOCKET socket, sockaddr* from, int size, int f
 #ifdef _WIN32
     auto len = int(sizeof(*from));
 #else
-    auto len = sizeof(*from);
+    socklen_t len = sizeof(*from);
 #endif
 	auto result = recvfrom(socket, buffer, size, flags, from, &len);
 	CheckRecvResult(result);
