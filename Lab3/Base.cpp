@@ -7,22 +7,22 @@ Base::Base(unsigned int port) : port(port)
 
 void Base::Close()
 {	
-	if (this->_socket != INVALID_SOCKET)
+	if (this->_tcp_socket != INVALID_SOCKET)
 	{
-		shutdown(this->_socket, SD_BOTH);
-		closesocket(this->_socket);
+		shutdown(this->_tcp_socket, SD_BOTH);
+		closesocket(this->_tcp_socket);
 	}
 }
 
 Base::~Base()
 {
-	this->Close();
+	this->Base::Close();
 }
 
 void Base::CreateTCPSocket()
 {
-	this->_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (this->_socket == INVALID_SOCKET)
+	this->_tcp_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (this->_tcp_socket == INVALID_SOCKET)
 	{
 		throw runtime_error(EX_SOCKET_ERROR);
 	}
@@ -37,9 +37,28 @@ void Base::CreateUDPSocket()
 	}
 }
 
-void Base::SetSocketTimeout(SOCKET socket)
+void Base::SetReceiveTimeout(SOCKET socket)
+{
+	auto timeout = GetTimeout();
+	SetReceiveTimeout(socket, timeout);
+}
+
+void Base::SetReceiveTimeout(SOCKET socket, TIME_STRUCT timeout)
+{
+	auto result = setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+	if (result == SOCKET_ERROR) {
+		throw runtime_error(EX_SET_TIMEOUT_ERROR);
+	}
+}
+
+void Base::SetSendTimeout(SOCKET socket)
 {
 	auto timeout = GetTimeout(SERVER_TIMEOUT);
+	SetSendTimeout(socket, timeout);
+}
+
+void Base::SetSendTimeout(SOCKET socket, TIME_STRUCT timeout)
+{
 	auto result = setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, (const char*)&timeout, sizeof(timeout));
 	if (result == SOCKET_ERROR) {
 		throw runtime_error(EX_SET_TIMEOUT_ERROR);
@@ -70,7 +89,6 @@ sockaddr_in* Base::CreateAddressInfo(string address, unsigned int port)
 		throw runtime_error(EX_WRONG_IP);
 	}
     addressInfo->sin_addr = ((sockaddr_in*)saddrinfo->ai_addr)->sin_addr;
-	//inet_pton(AF_INET, address.c_str(), &(addressInfo->sin_addr.s_addr));
 	return addressInfo;
 }
 

@@ -1,30 +1,29 @@
 #include "Server.h"
 
-Server::Server(unsigned int port, bool start) : Base(port)
+Server::Server(unsigned int port)
 {
-	FD_ZERO(&this->clientsSet);
-	if (start) {
-		Server::Init();
-	}
-}
-
-void Server::Init()
-{
+	this->port = port;
+	
+	CreateUDPSocket();
 	CreateTCPSocket();
-	SetSocketTimeout();
-	Bind();	
-	if (listen(this->_socket, SOMAXCONN) < 0) {
-		throw runtime_error(EX_LISTEN_ERROR);
-	}
-	FD_ZERO(&this->serverSet);
-	FD_SET(this->_socket, &this->serverSet);
+	Bind(this->_udp_socket);
+	Bind(this->_tcp_socket);
+	SetSendTimeout(this->_tcp_socket);
+	Listen();
 
-	cout << "Started at port: " << this->port << endl;
+	FD_ZERO(&this->clientsSet);
+	FD_ZERO(&this->serverSet);
+	FD_SET(this->_tcp_socket, &this->serverSet);
+	FD_SET(this->_udp_socket, &this->serverSet);
+
+	cout << "Server started at port: " << this->port << endl;
 }
 
-void Server::Bind()
+sockaddr_in* Server::CreateAddressInfoForServer()
 {
-	Bind(this->_socket);
+	auto addressInfo = CreateAddressInfo(DEFAULT_IP, this->port);
+	addressInfo->sin_addr.s_addr = ADDR_ANY;
+	return addressInfo;
 }
 
 void Server::Bind(SOCKET socket)
@@ -37,106 +36,9 @@ void Server::Bind(SOCKET socket)
 	}
 }
 
-void Server::SetSocketTimeout()
+SOCKET Server::Accept()
 {
-	Base::SetSocketTimeout(this->_socket);
-}
-
-sockaddr_in* Server::CreateAddressInfoForServer()
-{
-	auto addressInfo = CreateAddressInfo(DEFAULT_IP, this->port);
-	addressInfo->sin_addr.s_addr = ADDR_ANY;
-	return addressInfo;
-}
-
-void Server::Run()
-{
-	while (true)
-	{
-		TryToAddClient(this->clients.size() <= 0);
-		SendFileParts();
-	}
-}
-
-void Server::TryToAddClient(bool wait)
-{
-	try {
-		auto client = CheckForNewConnection(wait);
-
-		cout << "New client has arrived." << endl;
-
-		auto metadata = ExtractMetadata(ReceiveMessage(client));
-		cout << metadata.fileName << " " << metadata.progress << endl;
-		auto file = new fstream();
-		try {
-			OpenFile(file, metadata.fileName);
-		}
-		catch (runtime_error e) {
-			SendMessage(client, e.what());
-			throw;
-		}
-		SendMessage(client, to_string(GetFileSize(file)));
-		file->seekg(metadata.progress);
-
-		this->clients.push_back(new pair<SOCKET, fstream*>(client, file));
-		FD_SET(client, &this->clientsSet);
-		cout << CLIENTS_ONLINE;
-	}
-	catch (NoNewClients e) {	
-	}
-	catch (runtime_error e) {
-		cout << e.what() << endl;
-	}
-}
-
-void Server::RemoveClient(vector<CLIENT_INFO>::iterator& iter)
-{
-	auto clientInfo = *iter;
-	FD_CLR(clientInfo->first, &this->clientsSet);
-	clientInfo->second->close();
-	shutdown(clientInfo->first, SD_BOTH);
-	closesocket(clientInfo->first);
-	iter = this->clients.erase(iter);
-}
-
-void Server::SendFileParts()
-{
-	auto clients = this->clientsSet;
-	auto delay = new timeval();
-	auto count = select(FD_SETSIZE, NULL, &clients, NULL, delay);
-	if (count > 0)
-	{
-		for (auto client = this->clients.begin(); client != this->clients.end(); ++client)
-		{
-			if (FD_ISSET((*client)->first, &clients) > 0)
-			{
-				try {
-					SendBlock(*client);
-				}
-				catch (runtime_error e) {
-					cout << e.what() << endl;
-					RemoveClient(client);
-					cout << CLIENTS_ONLINE;
-					if (client == this->clients.end()) break;
-				}
-			}
-		}
-	}
-	FD_ZERO(&clients);
-	delete delay;
-}
-
-SOCKET Server::CheckForNewConnection(bool wait)
-{
-	auto temp = this->serverSet;
-	auto delay = new timeval();
-	delay->tv_sec = wait ? 1 : 0;
-	if (select(FD_SETSIZE, &temp, NULL, NULL, delay) <= 0) {
-		delete delay;
-		throw NoNewClients(EX_NO_NEW_CLIENTS);
-	}
-
-	auto client = accept(this->_socket, NULL, NULL);
+	auto client = accept(this->_tcp_socket, NULL, NULL);
 	if (client == INVALID_SOCKET) {
 		throw runtime_error(EX_ACCEPT_ERROR);
 	}
@@ -165,6 +67,57 @@ FileMetadata Server::ExtractMetadata(string metadata)
 	return metadata_st;
 }
 
+void Server::ProcessUDPClient()
+{
+	try
+	{		
+		auto clientsInfo = new sockaddr();
+		auto metadata = ExtractMetadata(ReceiveMessageFrom(this->_udp_socket, clientsInfo));
+		fstream *file;
+		try
+		{
+			file = GetFile(metadata.fileName);
+		} catch (runtime_error e)
+		{
+			SendMessageTo(this->_udp_socket, e.what(), clientsInfo);
+			throw;
+		}		
+		//SendMessageTo(this->_udp_socket, to_string(GetFileSize(file)), clientsInfo);
+		file->seekg(metadata.progress);
+		file->read(buffer, UDP_BUFFER_SIZE);
+		SendRawDataTo(this->_udp_socket, buffer, file->gcount(), clientsInfo);
+	}
+	catch (runtime_error e)
+	{
+	}
+}
+
+void Server::Listen()
+{
+	if (listen(this->_tcp_socket, SOMAXCONN) < 0) {
+		throw runtime_error(EX_LISTEN_ERROR);
+	}
+}
+
+fstream* Server::GetFile(string fileName)
+{
+	auto file = new fstream();
+	auto iter = find_if(this->files.begin(), this->files.end(), [&](pair<string, fstream*>* item)
+	{
+		return item->first == fileName;
+	});
+	if (iter != this->files.end())
+	{
+		file = (*iter)->second;
+	}
+	else
+	{
+		OpenFile(file, fileName);
+		this->files.push_back(new pair<string, fstream*>(fileName, file));
+	}
+	return file;
+}
+
 void Server::OpenFile(fstream *file, string fileName)
 {
 	file->open(fileName, ios::binary | ios::in);
@@ -174,22 +127,97 @@ void Server::OpenFile(fstream *file, string fileName)
 	}
 }
 
+void Server::RemoveTCPClient(vector<CLIENT_INFO>::iterator& iter)
+{
+	auto clientInfo = *iter;
+	FD_CLR(clientInfo->first, &this->clientsSet);
+	clientInfo->second->close();
+	shutdown(clientInfo->first, SD_BOTH);
+	closesocket(clientInfo->first);
+	iter = this->tcpClients.erase(iter);
+}
+
 void Server::SendBlock(CLIENT_INFO clientInfo)
 {
 	auto file = clientInfo->second;
-	if (file) {
+	if (file)
+	{
 		file->read(buffer, BUFFER_SIZE);
 		size_t read = file->gcount();
 		size_t realySent = SendRawData(clientInfo->first, buffer, read);
-		if (realySent != read) {
+		if (realySent != read)
+		{
 			fpos_t pos = file->tellg();
 			file->seekg(pos - (read - realySent));
 		}
 	}
-	else {
+	else
+	{
 		throw runtime_error(EX_SENDING_DONE);
 	}
 }
 
+void Server::SendFilePartsTCP(fd_set& clients)
+{
+	for (auto client = this->tcpClients.begin(); client != this->tcpClients.end(); ++client)
+	{
+		if (FD_ISSET((*client)->first, &clients) > 0)
+		{
+			try {
+				SendBlock(*client);
+			}
+			catch (runtime_error e) {
+				cout << e.what() << endl;
+				RemoveTCPClient(client);
+				cout << CLIENTS_ONLINE;
+				if (client == this->tcpClients.end()) break;
+			}
+		}
+	}
+}
 
+void Server::AddNewTCPClient()
+{
+	auto client = Accept();
+	auto metadata = ExtractMetadata(ReceiveMessage(client));
+	auto file = new fstream();
+	try {
+		OpenFile(file, metadata.fileName);
+	}
+	catch (runtime_error e) {
+		SendMessage(client, e.what());
+		throw;
+	}
+	SendMessage(client, to_string(GetFileSize(file)));
+	file->seekg(metadata.progress);
 
+	this->tcpClients.push_back(new pair<SOCKET, fstream*>(client, file));
+	FD_SET(client, &this->clientsSet);
+}
+
+void Server::Run()
+{
+	while (true)
+	{
+		auto clients = this->clientsSet;
+		auto servers = this->serverSet;
+
+		auto count = select(FD_SETSIZE, &servers, &clients, NULL, NULL);
+		if (count <= 0) continue;
+		if (FD_ISSET(this->_tcp_socket, &servers) > 0)
+		{
+			count--;
+			AddNewTCPClient();
+			cout << CLIENTS_ONLINE;
+		}
+		if (FD_ISSET(this->_udp_socket, &servers) > 0)
+		{
+			count--;
+			ProcessUDPClient();
+		}
+		if (count > 0)
+		{
+			SendFilePartsTCP(clients);
+		}
+	}
+}

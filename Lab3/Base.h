@@ -50,7 +50,7 @@
 #define DEFAULT_PORT 22222
 #define BUFFER_SIZE 1024*32
 #define UDP_NUMBER_SIZE 8
-#define UDP_BUFFER_SIZE BUFFER_SIZE - UDP_NUMBER_SIZE
+#define UDP_BUFFER_SIZE BUFFER_SIZE //- UDP_NUMBER_SIZE
 #define PACKAGE_COUNT 10
 
 using namespace std;
@@ -64,27 +64,27 @@ struct Package {
 
 class Base
 {
-private:
+	void CheckRecvResult(int result);
 	Package* PeekRawData(SOCKET socket);
 protected:
-	unsigned int port;
+	
 	char *buffer;
-	SOCKET _socket = INVALID_SOCKET;
-	SOCKET _udp_socket = INVALID_SOCKET;
-	virtual void Init() = 0;
+	unsigned int port;
+	SOCKET _tcp_socket;
+	SOCKET _udp_socket;
+
 	void virtual OpenFile(fstream *file, string fileName) = 0;
 
 	void CreateTCPSocket();
 	void CreateUDPSocket();
-	void virtual SetSocketTimeout() = 0;
-	void virtual SetSocketTimeout(SOCKET socket);
+
+	void SetReceiveTimeout(SOCKET socket);
+	void SetReceiveTimeout(SOCKET socket, TIME_STRUCT timeout);
+	void SetSendTimeout(SOCKET socket);
+	void SetSendTimeout(SOCKET socket, TIME_STRUCT timeout);
 	TIME_STRUCT GetTimeout(unsigned time = TIMEOUT);
 
-	//throws exception if error
-	void CheckRecvResult(int result);
-	Package* PeekRawDataFrom(SOCKET socket, sockaddr* from);
 	sockaddr_in* CreateAddressInfo(string address, unsigned int port);
-	
 
 	void SendMessageTo(SOCKET socket, string message, sockaddr *to);
 	void SendMessage(SOCKET socket, string message);

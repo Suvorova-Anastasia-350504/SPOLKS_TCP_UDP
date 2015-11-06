@@ -1,7 +1,6 @@
 #pragma once
 #include "Base.h"
-
-#define CLIENTS_ONLINE "Clients online : " << this->clients.size() << endl
+#define CLIENTS_ONLINE "Clients online : " << this->tcpClients.size() << endl
 #define CLIENT_INFO pair<SOCKET, fstream*>*
 
 struct FileMetadata {
@@ -11,37 +10,28 @@ struct FileMetadata {
 
 class Server : public Base
 {
-protected:
-	vector<CLIENT_INFO> clients;
+	vector<CLIENT_INFO> tcpClients;
+	vector<pair<string, fstream *>*> files;
 	fd_set serverSet;
 	fd_set clientsSet;
-
-	void TryToAddClient(bool wait = false);
-	void RemoveClient(vector<CLIENT_INFO>::iterator& iter);
-	virtual void SendFileParts();
-	SOCKET CheckForNewConnection(bool wait = false);
-	void SendBlock(CLIENT_INFO clientInfo);
-
-	void Bind();
-	void Bind(SOCKET socket);
-	void virtual Init() override;
+		
 	void virtual OpenFile(fstream *file, string fileName) override;
-	void virtual SetSocketTimeout() override;
-
+	fstream* GetFile(string fileName);
+	void Bind(SOCKET socket);	
 	fpos_t GetFileSize(fstream *file);
-	FileMetadata ExtractMetadata(string metadata);	
+	FileMetadata ExtractMetadata(string metadata);
 	sockaddr_in* CreateAddressInfoForServer();
-public:
-	explicit Server(unsigned int port = DEFAULT_PORT, bool start = true);
 
-	void virtual Run();	
-};
-
-class NoNewClients : public runtime_error
-{
+	void ProcessUDPClient();
+	//TCP
+	SOCKET Accept();
+	void Listen();
+	void SendFilePartsTCP(fd_set &clients);
+	void AddNewTCPClient();
+	void RemoveTCPClient(vector<CLIENT_INFO>::iterator& iter);
+	void SendBlock(CLIENT_INFO clientInfo);
 public:
-	explicit NoNewClients(const char* details) : runtime_error(details)
-	{
-	}
+	Server(unsigned int port = DEFAULT_PORT);
+	void Run();
 };
 

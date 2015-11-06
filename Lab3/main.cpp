@@ -1,5 +1,6 @@
-#include "UDPServer.h"
+#include "Server.h"
 #include "UDPClient.h"
+#include "TCPClient.h"
 
 //just for Windows
 void InitializeNetwork()
@@ -21,45 +22,10 @@ void ReleaseNetwork()
 #endif
 }
 
-void startAsServer() {
-	Server *server = NULL;
-	try
-	{
-		server = new Server();
-		server->Run();
-	}
-	catch (exception e)
-	{
-		cout << e.what();
-	}
-	delete server;
-}
-
-void startAsClient() 
-{
-	Client *client = NULL;
-	string ip;
-	cout << "Enter IP:" << endl;
-	cin >> ip;
-	string fileName;
-	cout << "Enter file name" << endl;
-	cin >> fileName;
-	try
-	{
-		client = new Client(ip);
-		client->DownloadFile(fileName);
-	}
-	catch (exception e)
-	{
-		cout << e.what() << endl;
-	}
-	delete client;
-}
-
-void startAsUDPServer()
+void startAsServer()
 {
 	try {
-		auto server = new UDPServer();
+		auto server = new Server();
 		server->Run();
 		delete server;
 	}
@@ -68,24 +34,29 @@ void startAsUDPServer()
 	}
 }
 
-void startAsUDPClient()
+void startAsClient() 
 {
-	string ip;
+	Client *client = NULL;
+	string type, ip, fileName;
+	
+	cout << "'udp' for UDP type" << endl;
+	cin >> type;
 	cout << "Enter IP:" << endl;
 	cin >> ip;
-	string fileName;
 	cout << "Enter file name" << endl;
 	cin >> fileName;
+
 	try
 	{
-		auto client = new UDPClient(ip);
+		if (type == "udp") client = new UDPClient(ip);
+		else client = new TCPClient(ip);
 		client->DownloadFile(fileName);
-		delete client;
 	}
 	catch (exception e)
 	{
 		cout << e.what() << endl;
 	}
+	delete client;
 }
 
 int main(void)
@@ -98,12 +69,10 @@ int main(void)
 	
 	switch (mode[0]) {
 		case 's':
-			startAsUDPServer();
+			startAsServer();
 			break;
 		default:
-			cout << "upd or tcp" << endl;
-			cin >> type;
-			type == "udp" ? startAsUDPClient() : startAsClient();
+			startAsClient();
 	}
 
 	ReleaseNetwork();
