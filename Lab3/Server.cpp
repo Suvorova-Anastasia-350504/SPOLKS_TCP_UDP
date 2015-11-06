@@ -102,7 +102,8 @@ void Server::RemoveClient(vector<CLIENT_INFO>::iterator& iter)
 void Server::SendFileParts()
 {
 	auto clients = this->clientsSet;
-	auto count = select(FD_SETSIZE, NULL, &clients, NULL, new timeval());
+	auto delay = new timeval();
+	auto count = select(FD_SETSIZE, NULL, &clients, NULL, delay);
 	if (count > 0)
 	{
 		for (auto client = this->clients.begin(); client != this->clients.end(); ++client)
@@ -122,14 +123,16 @@ void Server::SendFileParts()
 		}
 	}
 	FD_ZERO(&clients);
+	delete delay;
 }
 
 SOCKET Server::CheckForNewConnection(bool wait)
 {
 	auto temp = this->serverSet;
 	auto delay = new timeval();
-	delay->tv_usec = 10000;
-	if (select(FD_SETSIZE, &temp, NULL, NULL, wait ? delay : new timeval()) <= 0) {
+	delay->tv_sec = wait ? 1 : 0;
+	if (select(FD_SETSIZE, &temp, NULL, NULL, delay) <= 0) {
+		delete delay;
 		throw NoNewClients(EX_NO_NEW_CLIENTS);
 	}
 

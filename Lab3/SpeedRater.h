@@ -1,4 +1,5 @@
 #pragma once
+
 #include <chrono>
 
 using namespace std::chrono;
@@ -6,11 +7,11 @@ using namespace std::chrono;
 class SpeedRater
 {	
 	time_point<steady_clock> beginTime;
-	fpos_t startPosition;
+	long long startPosition;
 	
 	void Start();
 public:
-	SpeedRater(fpos_t startPosition);
-	double GetSpeed(fpos_t progress);
+	SpeedRater(long long startPosition);
+	double GetSpeed(long long progress);
 };
 

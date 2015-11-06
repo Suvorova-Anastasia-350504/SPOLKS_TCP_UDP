@@ -1,16 +1,16 @@
 #include "SpeedRater.h"
 
-SpeedRater::SpeedRater(fpos_t startPosition)
+SpeedRater::SpeedRater(long long startPosition)
 {
 	this->startPosition = startPosition;
 	Start();
 }
 
-double SpeedRater::GetSpeed(fpos_t progress)
+double SpeedRater::GetSpeed(long long progress)
 {
 	auto now = high_resolution_clock::now();
-	auto duration = duration_cast<milliseconds>(now - this->beginTime).count();
-	return double((progress - this->startPosition) / duration) / 1000;
+	auto duration = duration_cast<microseconds>(now - this->beginTime).count();
+	return double(progress - this->startPosition) / duration;
 }
 
 void SpeedRater::Start()

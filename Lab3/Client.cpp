@@ -163,7 +163,6 @@ void Client::ReceiveFile(fstream *file, fpos_t currentPos, fpos_t fileSize)
 	Package package;
 	auto timer = new SpeedRater(currentPos);
 	auto lastProgress = ShowProgress(0, currentPos, fileSize, timer);
-	
 	while (currentPos < fileSize)
 	{
 		try {
