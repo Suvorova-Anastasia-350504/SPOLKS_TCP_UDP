@@ -71,9 +71,9 @@ string Client::ReceiveMessage()
 	return Base::ReceiveMessage(this->_socket);
 }
 
-Package Client::ReceiveRawData()
+Package* Client::ReceiveRawData()
 {
-	return *Base::ReceiveRawData(this->_socket);
+	return Base::ReceiveRawData(this->_socket);
 }
 
 //returns file's name without relative path
@@ -160,23 +160,26 @@ fpos_t Client::ShowProgress(fpos_t lastProgress, fpos_t currentPos, fpos_t fileS
 
 void Client::ReceiveFile(fstream *file, fpos_t currentPos, fpos_t fileSize)
 {
-	Package package;
+	Package *package;
 	auto timer = new SpeedRater(currentPos);
 	auto lastProgress = ShowProgress(0, currentPos, fileSize, timer);
 	while (currentPos < fileSize)
 	{
 		try {
 			package = ReceiveRawData();		
-			file->write(package.data, package.size);
-			currentPos += package.size;
+			file->write(package->data, package->size);
+			currentPos += package->size;
 			lastProgress = ShowProgress(lastProgress, currentPos, fileSize, timer);
+			delete package;
 		} 
 		catch (runtime_error e) {
 			cout << e.what() << endl;
 			file->flush();
+			delete timer;
 			throw ConnectionInterrupted(currentPos);
 		}		
 	}
+	delete timer;
 }
 
 void Client::Reconnect()

@@ -24,7 +24,7 @@ protected:
 	string GetLocalFileName(string fileName);
 
 	sockaddr_in* CreateAddressInfoForClient();
-	Package ReceiveRawData();
+	Package* ReceiveRawData();
 	string ReceiveMessage();
 public:
 	Client(string address = DEFAULT_IP, unsigned int port = DEFAULT_PORT, bool start = true);
