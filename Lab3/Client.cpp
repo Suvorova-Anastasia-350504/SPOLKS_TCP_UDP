@@ -143,17 +143,17 @@ void Client::DownloadFile(string fileName)
 			cout << e.what() << endl;
 			Reconnect();
 		}
-	}	
+	}
 	file->close();
 	cout << "Done." << endl;
 }
 
-fpos_t Client::ShowProgress(fpos_t lastProgress, fpos_t currentPos, fpos_t fileSize)
+fpos_t Client::ShowProgress(fpos_t lastProgress, fpos_t currentPos, fpos_t fileSize, SpeedRater *timer)
 {
 	auto progress = 100 * (double(currentPos) / double(fileSize));
 	if (progress - lastProgress > DELTA_PERCENTAGE) {
 		lastProgress = progress;
-		cout << progress << " %" << endl;
+		cout << progress << " %. " << timer->GetSpeed(currentPos) << " MB/s" << endl;
 	}
 	return lastProgress;
 }
@@ -161,15 +161,16 @@ fpos_t Client::ShowProgress(fpos_t lastProgress, fpos_t currentPos, fpos_t fileS
 void Client::ReceiveFile(fstream *file, fpos_t currentPos, fpos_t fileSize)
 {
 	Package package;
-	auto lastProgress = ShowProgress(0, currentPos, fileSize);
+	auto timer = new SpeedRater(currentPos);
+	auto lastProgress = ShowProgress(0, currentPos, fileSize, timer);
+	
 	while (currentPos < fileSize)
 	{
 		try {
-			//Sleep(2000);
 			package = ReceiveRawData();		
 			file->write(package.data, package.size);
 			currentPos += package.size;
-			lastProgress = ShowProgress(lastProgress, currentPos, fileSize);
+			lastProgress = ShowProgress(lastProgress, currentPos, fileSize, timer);
 		} 
 		catch (runtime_error e) {
 			cout << e.what() << endl;

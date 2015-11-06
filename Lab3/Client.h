@@ -1,5 +1,6 @@
 #pragma once
 #include "Base.h"
+#include "SpeedRater.h"
 
 #define DELTA_PERCENTAGE 5
 
@@ -28,7 +29,7 @@ protected:
 public:
 	Client(string address = DEFAULT_IP, unsigned int port = DEFAULT_PORT, bool start = true);
 	void virtual DownloadFile(string fileName);
-	fpos_t ShowProgress(fpos_t lastProgress, fpos_t currentPos, fpos_t fileSize);
+	fpos_t ShowProgress(fpos_t lastProgress, fpos_t currentPos, fpos_t fileSize, SpeedRater *timer);
 };
 
 class ServerError : public runtime_error

@@ -30,7 +30,7 @@ void UDPClient::DownloadFile(string fileName)
 			file->seekp(number);
 			file->write(package->data, package->size - UDP_NUMBER_SIZE);
 			currentProgress += package->size - UDP_NUMBER_SIZE;
-			lastProgress = ShowProgress(lastProgress, currentProgress, fileSize);
+//			lastProgress = ShowProgress(lastProgress, currentProgress, fileSize);
 		} catch (ServerError e) {
 			cout << e.what() << endl;
 			break;
