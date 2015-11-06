@@ -1,7 +1,6 @@
 #pragma once
 
 #include <chrono>
-#include <ctime>
 
 using namespace std::chrono;
 
