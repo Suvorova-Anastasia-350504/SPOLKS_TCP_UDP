@@ -54,16 +54,29 @@ fpos_t Server::GetFileSize(fstream *file)
 	return size;
 }
 
-FileMetadata Server::ExtractMetadata(string metadata)
+TCPMetadata Server::ExtractMetadata(string metadata)
 {
-	FileMetadata metadata_st;
+	TCPMetadata metadata_st;
 	string value;
-	stringstream ss;
-	ss << metadata;
-	getline(ss, value, '|');
+	stringstream ss(metadata);
+	getline(ss, value, METADATA_DELIM);
 	metadata_st.fileName = value;
-	getline(ss, value, '\\');
+	getline(ss, value, PATH_DELIM);
 	metadata_st.progress = stoll(value);
+	return metadata_st;
+}
+
+UDPMetadata Server::ExtractMetadataUDP(string metadata)
+{
+	UDPMetadata metadata_st;
+	string value;
+	stringstream ss(metadata);
+	getline(ss, value, METADATA_DELIM);
+	metadata_st.fileName = value;
+	getline(ss, value, METADATA_DELIM);
+	metadata_st.progress = stoll(value);
+	getline(ss, value, '\n');
+	metadata_st.requestfileSize = value == "1";
 	return metadata_st;
 }
 
@@ -72,7 +85,7 @@ void Server::ProcessUDPClient()
 	try
 	{		
 		auto clientsInfo = new sockaddr();
-		auto metadata = ExtractMetadata(ReceiveMessageFrom(this->_udp_socket, clientsInfo));
+		auto metadata = ExtractMetadataUDP(ReceiveMessageFrom(this->_udp_socket, clientsInfo));
 		fstream *file;
 		try
 		{
@@ -82,7 +95,7 @@ void Server::ProcessUDPClient()
 			SendMessageTo(this->_udp_socket, e.what(), clientsInfo);
 			throw;
 		}		
-		//SendMessageTo(this->_udp_socket, to_string(GetFileSize(file)), clientsInfo);
+		if (metadata.requestfileSize) SendMessageTo(this->_udp_socket, to_string(GetFileSize(file)), clientsInfo);
 		file->seekg(metadata.progress);
 		file->read(buffer, UDP_BUFFER_SIZE);
 		SendRawDataTo(this->_udp_socket, buffer, file->gcount(), clientsInfo);

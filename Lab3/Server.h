@@ -3,8 +3,14 @@
 #define CLIENTS_ONLINE "Clients online : " << this->tcpClients.size() << endl
 #define CLIENT_INFO pair<SOCKET, fstream*>*
 
-struct FileMetadata {
+struct TCPMetadata {
 	string fileName;
+	fpos_t progress;
+};
+
+struct UDPMetadata {
+	string fileName;
+	bool requestfileSize;
 	fpos_t progress;
 };
 
@@ -19,7 +25,8 @@ class Server : public Base
 	fstream* GetFile(string fileName);
 	void Bind(SOCKET socket);	
 	fpos_t GetFileSize(fstream *file);
-	FileMetadata ExtractMetadata(string metadata);
+	TCPMetadata ExtractMetadata(string metadata);
+	UDPMetadata ExtractMetadataUDP(string metadata);
 	sockaddr_in* CreateAddressInfoForServer();
 
 	void ProcessUDPClient();

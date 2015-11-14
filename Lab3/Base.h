@@ -46,6 +46,7 @@
 
 #define PATH_DELIM '\\'
 #define PATH_DELIM_LINUX '/'
+#define METADATA_DELIM '|'
 #define DEFAULT_IP "127.0.0.1"
 #define DEFAULT_PORT 22222
 #define BUFFER_SIZE 1024*32
