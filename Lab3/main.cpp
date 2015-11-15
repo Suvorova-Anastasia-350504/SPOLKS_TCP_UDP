@@ -1,6 +1,7 @@
 #include "Server.h"
 #include "UDPClient.h"
 #include "TCPClient.h"
+#include <conio.h>
 
 //just for Windows
 void InitializeNetwork()

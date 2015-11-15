@@ -11,10 +11,8 @@
 #ifdef _WIN32
 #include <WinSock2.h>
 #include <WS2tcpip.h>
-#include <conio.h>
 #pragma comment (lib, "Ws2_32.lib")
 
-#define DELAY 1000
 #define TIMEOUT 5000
 #define SERVER_TIMEOUT TIMEOUT - 2000
 #define TIME_STRUCT DWORD
@@ -34,7 +32,6 @@
 #define DWORD unsigned long
 #define fpos_t int64_t
 #define Sleep sleep
-#define DELAY 1
 #define SOCKET int
 #define INVALID_SOCKET -1
 #define SOCKET_ERROR -1
@@ -44,6 +41,7 @@
 #define ADDR_ANY INADDR_ANY
 #endif
 
+#define DELAY 1
 #define PATH_DELIM '\\'
 #define PATH_DELIM_LINUX '/'
 #define METADATA_DELIM '|'
@@ -51,8 +49,8 @@
 #define DEFAULT_PORT 22222
 #define BUFFER_SIZE 1024*32
 #define UDP_NUMBER_SIZE 8
-#define UDP_BUFFER_SIZE BUFFER_SIZE //- UDP_NUMBER_SIZE
-#define PACKAGE_COUNT 10
+#define UDP_BUFFER_SIZE BUFFER_SIZE - UDP_NUMBER_SIZE
+#define PACKAGE_COUNT 100
 
 using namespace std;
 

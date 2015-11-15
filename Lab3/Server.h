@@ -10,31 +10,36 @@ struct TCPMetadata {
 
 struct UDPMetadata {
 	string fileName;
-	bool requestfileSize;
 	fpos_t progress;
+	sockaddr *addr;
+	fpos_t packagesToSend;
+	fstream *file;
 };
 
 class Server : public Base
 {
 	vector<CLIENT_INFO> tcpClients;
-	vector<pair<string, fstream *>*> files;
+	vector<UDPMetadata*> udpClients;
 	fd_set serverSet;
 	fd_set clientsSet;
 		
 	void virtual OpenFile(fstream *file, string fileName) override;
-	fstream* GetFile(string fileName);
 	void Bind(SOCKET socket);	
 	fpos_t GetFileSize(fstream *file);
 	TCPMetadata ExtractMetadata(string metadata);
-	UDPMetadata ExtractMetadataUDP(string metadata);
+	UDPMetadata* ExtractMetadataUDP(string metadata);
 	sockaddr_in* CreateAddressInfoForServer();
 
-	void ProcessUDPClient();
+	//UDP
+	void AddUDPClient();
+	void SendFilePartsUDP();
+	void AddNumberToDatagram(char *buffer, fpos_t size, fpos_t number);
+	void RemoveUDPClient(vector<UDPMetadata*>::iterator& iter);
 	//TCP
 	SOCKET Accept();
 	void Listen();
 	void SendFilePartsTCP(fd_set &clients);
-	void AddNewTCPClient();
+	void AddTCPClient();
 	void RemoveTCPClient(vector<CLIENT_INFO>::iterator& iter);
 	void SendBlock(CLIENT_INFO clientInfo);
 public:

@@ -66,43 +66,90 @@ TCPMetadata Server::ExtractMetadata(string metadata)
 	return metadata_st;
 }
 
-UDPMetadata Server::ExtractMetadataUDP(string metadata)
+UDPMetadata* Server::ExtractMetadataUDP(string metadata)
 {
-	UDPMetadata metadata_st;
+	auto metadata_st = new UDPMetadata();
 	string value;
 	stringstream ss(metadata);
 	getline(ss, value, METADATA_DELIM);
-	metadata_st.fileName = value;
+	metadata_st->fileName = value;
 	getline(ss, value, METADATA_DELIM);
-	metadata_st.progress = stoll(value);
+	metadata_st->progress = stoll(value);
 	getline(ss, value, '\n');
-	metadata_st.requestfileSize = value == "1";
+	metadata_st->packagesToSend = stoll(value);
 	return metadata_st;
 }
 
-void Server::ProcessUDPClient()
+void Server::AddUDPClient()
 {
 	try
 	{		
 		auto clientsInfo = new sockaddr();
 		auto metadata = ExtractMetadataUDP(ReceiveMessageFrom(this->_udp_socket, clientsInfo));
-		fstream *file;
-		try
-		{
-			file = GetFile(metadata.fileName);
-		} catch (runtime_error e)
-		{
+		metadata->file = new fstream();
+		try	{
+			OpenFile(metadata->file, metadata->fileName);
+		} catch (runtime_error e) {
 			SendMessageTo(this->_udp_socket, e.what(), clientsInfo);
 			throw;
-		}		
-		if (metadata.requestfileSize) SendMessageTo(this->_udp_socket, to_string(GetFileSize(file)), clientsInfo);
-		file->seekg(metadata.progress);
-		file->read(buffer, UDP_BUFFER_SIZE);
-		SendRawDataTo(this->_udp_socket, buffer, file->gcount(), clientsInfo);
+		}
+		auto fileSize = GetFileSize(metadata->file);
+		SendMessageTo(this->_udp_socket, to_string(fileSize), clientsInfo);
+		metadata->file->seekg(metadata->progress);
+		metadata->packagesToSend = metadata->packagesToSend == 0 ?
+			PACKAGE_COUNT : metadata->packagesToSend;
+		metadata->addr = clientsInfo;
+		this->udpClients.push_back(metadata);
+		cout << "UDP client added." << endl;
 	}
 	catch (runtime_error e)
 	{
 	}
+}
+
+void Server::SendFilePartsUDP()
+{
+	for (auto client = this->udpClients.begin(); client != this->udpClients.end(); ++client)
+	{
+		auto metadata = *client;
+		auto file = metadata->file;
+		auto packageNumber = file->tellg();
+		file->read(buffer, UDP_BUFFER_SIZE);
+		auto dataSize = file->gcount();
+		AddNumberToDatagram(buffer, dataSize, packageNumber);
+		SendRawDataTo(this->_udp_socket, buffer, dataSize + UDP_NUMBER_SIZE, metadata->addr);
+		if (--metadata->packagesToSend == 0)
+		{
+			auto newMetadata = ExtractMetadataUDP(ReceiveMessageFrom(this->_udp_socket, metadata->addr));
+			metadata->packagesToSend = newMetadata->packagesToSend;
+			metadata->progress = newMetadata->progress;
+			file->seekg(newMetadata->progress);
+		}
+		if (file->eof())
+		{
+			RemoveUDPClient(client);
+			cout << "UDP sending finished." << endl;
+			if (client == this->udpClients.end()) break;
+		}
+	}
+}
+
+void Server::AddNumberToDatagram(char* buffer, fpos_t size, fpos_t number)
+{
+	for (fpos_t i = 0xFF, j = 0; j < UDP_NUMBER_SIZE - 1; i = i << 8, j++)
+	{
+		auto byte = (number & i) >> j * 8;
+		buffer[size + j] = byte;
+	}
+}
+
+void Server::RemoveUDPClient(vector<UDPMetadata*>::iterator& iter)
+{
+	auto clientInfo = *iter;
+	clientInfo->file->close();
+	delete clientInfo->file;
+	delete clientInfo->addr;
+	iter = this->udpClients.erase(iter);
 }
 
 void Server::Listen()
@@ -110,25 +157,6 @@ void Server::Listen()
 	if (listen(this->_tcp_socket, SOMAXCONN) < 0) {
 		throw runtime_error(EX_LISTEN_ERROR);
 	}
-}
-
-fstream* Server::GetFile(string fileName)
-{
-	auto file = new fstream();
-	auto iter = find_if(this->files.begin(), this->files.end(), [&](pair<string, fstream*>* item)
-	{
-		return item->first == fileName;
-	});
-	if (iter != this->files.end())
-	{
-		file = (*iter)->second;
-	}
-	else
-	{
-		OpenFile(file, fileName);
-		this->files.push_back(new pair<string, fstream*>(fileName, file));
-	}
-	return file;
 }
 
 void Server::OpenFile(fstream *file, string fileName)
@@ -189,7 +217,7 @@ void Server::SendFilePartsTCP(fd_set& clients)
 	}
 }
 
-void Server::AddNewTCPClient()
+void Server::AddTCPClient()
 {
 	auto client = Accept();
 	auto metadata = ExtractMetadata(ReceiveMessage(client));
@@ -210,23 +238,24 @@ void Server::AddNewTCPClient()
 
 void Server::Run()
 {
+	auto nullDelay = new timeval();
 	while (true)
 	{
 		auto clients = this->clientsSet;
 		auto servers = this->serverSet;
-
-		auto count = select(FD_SETSIZE, &servers, &clients, NULL, NULL);
+		auto count = select(FD_SETSIZE, &servers, &clients, NULL, this->udpClients.size() != 0 ? nullDelay : NULL);
+		if (this->udpClients.size() != 0) SendFilePartsUDP();
 		if (count <= 0) continue;
 		if (FD_ISSET(this->_tcp_socket, &servers) > 0)
 		{
 			count--;
-			AddNewTCPClient();
+			AddTCPClient();
 			cout << CLIENTS_ONLINE;
 		}
 		if (FD_ISSET(this->_udp_socket, &servers) > 0)
 		{
 			count--;
-			ProcessUDPClient();
+			AddUDPClient();
 		}
 		if (count > 0)
 		{
