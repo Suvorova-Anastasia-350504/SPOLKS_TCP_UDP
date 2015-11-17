@@ -64,7 +64,7 @@ fpos_t Client::ShowProgress(fpos_t lastProgress, fpos_t currentPos, fpos_t fileS
 	auto progress = 100 * (double(currentPos) / double(fileSize));
 	if (progress - lastProgress > DELTA_PERCENTAGE) {
 		lastProgress = progress;
-		cout << progress << " %. " << timer->GetSpeed(currentPos) << " MB/s" << endl;
+		cout << progress << " %. " << timer->GetSpeed(currentPos) << " MB/s " << currentPos << endl;
 	}
 	return lastProgress;
 }

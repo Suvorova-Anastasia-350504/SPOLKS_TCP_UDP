@@ -14,6 +14,7 @@ struct UDPMetadata {
 	sockaddr *addr;
 	fpos_t packagesToSend;
 	fstream *file;
+	bool requestFileSize;
 };
 
 class Server : public Base

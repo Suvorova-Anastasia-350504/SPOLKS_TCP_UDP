@@ -9,6 +9,7 @@ Server::Server(unsigned int port)
 	Bind(this->_udp_socket);
 	Bind(this->_tcp_socket);
 	SetSendTimeout(this->_tcp_socket);
+	SetReceiveTimeout(this->_udp_socket, GetTimeout(100));
 	Listen();
 
 	FD_ZERO(&this->clientsSet);
@@ -75,8 +76,10 @@ UDPMetadata* Server::ExtractMetadataUDP(string metadata)
 	metadata_st->fileName = value;
 	getline(ss, value, METADATA_DELIM);
 	metadata_st->progress = stoll(value);
-	getline(ss, value, '\n');
+	getline(ss, value, METADATA_DELIM);
 	metadata_st->packagesToSend = stoll(value);
+	getline(ss, value, '\n');
+	metadata_st->requestFileSize = value == "1";
 	return metadata_st;
 }
 
@@ -94,13 +97,27 @@ void Server::AddUDPClient()
 			throw;
 		}
 		auto fileSize = GetFileSize(metadata->file);
-		SendMessageTo(this->_udp_socket, to_string(fileSize), clientsInfo);
+		if (metadata->requestFileSize)
+		{
+			SendMessageTo(this->_udp_socket, to_string(fileSize), clientsInfo);
+		}
+		
 		metadata->file->seekg(metadata->progress);
 		metadata->packagesToSend = metadata->packagesToSend == 0 ?
 			PACKAGE_COUNT : metadata->packagesToSend;
 		metadata->addr = clientsInfo;
-		this->udpClients.push_back(metadata);
-		cout << "UDP client added." << endl;
+		//FIXME : this->udpClients.push_back(metadata);
+		auto _client = find_if(this->udpClients.begin(), this->udpClients.end(), [&](UDPMetadata* client)
+		{
+			return client->addr->sa_data == client->addr->sa_data;
+		});
+		if (_client == this->udpClients.end()) this->udpClients.push_back(metadata);
+		else
+		{
+			cout << "replaced" << endl;
+			_client = this->udpClients.insert(_client, metadata);
+			this->udpClients.erase(++_client);			
+		}		
 	}
 	catch (runtime_error e)
 	{
@@ -113,17 +130,15 @@ void Server::SendFilePartsUDP()
 	{
 		auto metadata = *client;
 		auto file = metadata->file;
-		auto packageNumber = file->tellg();
+		auto packageNumber = file->tellg() / UDP_BUFFER_SIZE;
 		file->read(buffer, UDP_BUFFER_SIZE);
 		auto dataSize = file->gcount();
 		AddNumberToDatagram(buffer, dataSize, packageNumber);
 		SendRawDataTo(this->_udp_socket, buffer, dataSize + UDP_NUMBER_SIZE, metadata->addr);
-		if (--metadata->packagesToSend == 0)
+		if (--metadata->packagesToSend <= 0)
 		{
-			auto newMetadata = ExtractMetadataUDP(ReceiveMessageFrom(this->_udp_socket, metadata->addr));
-			metadata->packagesToSend = newMetadata->packagesToSend;
-			metadata->progress = newMetadata->progress;
-			file->seekg(newMetadata->progress);
+			RemoveUDPClient(client);
+			if (client == this->udpClients.end()) break;
 		}
 		if (file->eof())
 		{
