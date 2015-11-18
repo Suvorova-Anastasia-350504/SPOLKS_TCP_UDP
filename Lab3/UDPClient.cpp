@@ -26,7 +26,7 @@ fpos_t UDPClient::ConnectToServer(string metadata)
 		} catch(ServerError e) {
 			throw;
 		}catch(runtime_error e)	{
-			//Do nothing.
+			cout << e.what() << endl;
 		}
 	}
 }

@@ -71,8 +71,8 @@ TIME_STRUCT Base::GetTimeout(unsigned time)
 #ifdef _WIN32
 	timeout = time;
 #else
-	timeout.tv_sec = time;
-	timeout.tv_usec = 0;
+	timeout.tv_sec = 0;
+	timeout.tv_usec = time;
 #endif
 	return timeout;
 }

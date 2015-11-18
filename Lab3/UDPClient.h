@@ -2,9 +2,9 @@
 #include "Client.h"
 
 #ifdef _WIN32
-#define UDP_RECV_TIMEOUT 1000
+#define UDP_RECV_TIMEOUT 100
 #else
-#define UDP_RECV_TIMEOUT 1
+#define UDP_RECV_TIMEOUT 100000
 #endif
 
 class UDPClient : public Client

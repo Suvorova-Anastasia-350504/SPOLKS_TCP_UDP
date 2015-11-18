@@ -27,8 +27,8 @@
 #include <sys/time.h>
 #include <string.h>
 
-#define TIMEOUT 5
-#define SERVER_TIMEOUT TIMEOUT - 2
+#define TIMEOUT 5000000
+#define SERVER_TIMEOUT TIMEOUT - 2000000
 #define DWORD unsigned long
 #define fpos_t int64_t
 #define Sleep sleep
@@ -47,10 +47,10 @@
 #define METADATA_DELIM '|'
 #define DEFAULT_IP "127.0.0.1"
 #define DEFAULT_PORT 22222
-#define BUFFER_SIZE 1024*8
+#define BUFFER_SIZE 1024*16
 #define UDP_NUMBER_SIZE 4
 #define UDP_BUFFER_SIZE (BUFFER_SIZE - UDP_NUMBER_SIZE)
-#define PACKAGE_COUNT 100
+#define PACKAGE_COUNT 1000
 
 using namespace std;
 
