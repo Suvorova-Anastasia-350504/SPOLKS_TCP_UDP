@@ -47,10 +47,10 @@
 #define METADATA_DELIM '|'
 #define DEFAULT_IP "127.0.0.1"
 #define DEFAULT_PORT 22222
-#define BUFFER_SIZE 1024*16
+#define BUFFER_SIZE 1024*8
 #define UDP_NUMBER_SIZE 4
 #define UDP_BUFFER_SIZE (BUFFER_SIZE - UDP_NUMBER_SIZE)
-#define PACKAGE_COUNT 10
+#define PACKAGE_COUNT 100
 
 using namespace std;
 

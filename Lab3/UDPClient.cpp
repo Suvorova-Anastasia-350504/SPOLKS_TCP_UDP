@@ -4,68 +4,99 @@ UDPClient::UDPClient(string address, unsigned int port) : Client(address, port)
 {
 	this->serverAddressInfo = (sockaddr*)CreateAddressInfoForClient();
 	CreateUDPSocket();
-	SetReceiveTimeout(this->_udp_socket, GetTimeout(1000));
+	SetReceiveTimeout(this->_udp_socket, GetTimeout(UDP_RECV_TIMEOUT));
+	for (auto i = 0; i < PACKAGE_COUNT; i++)
+	{
+		auto _pair = new pair<fpos_t, Package*>();
+		_pair->second = new Package();
+		_pair->second->data = new char[UDP_BUFFER_SIZE];
+		this->receivedBuffer.push_back(_pair);
+	}
+}
+
+fpos_t UDPClient::ConnectToServer(string metadata)
+{
+	while(true)
+	{
+		try
+		{
+			SendMessageTo(this->_udp_socket, metadata, this->serverAddressInfo);
+			auto fileSize = ReceiveFileSize();
+			return fileSize;
+		} catch(ServerError e) {
+			throw;
+		}catch(runtime_error e)	{
+			//Do nothing.
+		}
+	}
 }
 
 void UDPClient::DownloadFile(string fileName)
 {
 	auto file = new fstream();
 	OpenFile(file, GetLocalFileName(fileName));
-	fpos_t currentProgress = file->tellp();
-	SendMessageTo(this->_udp_socket, CreateFileInfo(fileName, currentProgress, PACKAGE_COUNT, true), this->serverAddressInfo);
-	auto fileSize = ReceiveFileSize();
-
-	//GenerateExpectedPackages(currentProgress / UDP_BUFFER_SIZE, fileSize / UDP_BUFFER_SIZE);
-
+	fpos_t currentProgress = file->tellp();		
+	auto fileSize = ConnectToServer(CreateFileInfo(fileName, currentProgress, PACKAGE_COUNT, true));	
 	cout << "Download started." << endl;
-	auto done = fileSize <= currentProgress;
 	auto timer = new SpeedRater(currentProgress);
-	auto lastProgress = ShowProgress(0, currentProgress, fileSize, timer);
+	auto lastProgress = 0;
+	auto done = fileSize <= currentProgress;
 	while(!done)
 	{
 		try {
-			ReceiveFile(file, currentProgress, fileSize);
-			done = true;
+			ReceiveBatch();			
 		}
 		catch (ServerError e) {
 			cout << e.what() << endl;
 			break;
 		}
-		catch (ConnectionInterrupted e) {
-			sort(this->receivedPackages.begin(), this->receivedPackages.end());
-			for (auto i = this->receivedPackages.begin(); i != this->receivedPackages.end(); ++i)
-			{
-				if ((*i) * UDP_BUFFER_SIZE != currentProgress) break;
-				currentProgress += UDP_BUFFER_SIZE;
-				//this->expectedPackages.erase(this->expectedPackages.begin());
-			}
-			receivedPackages.clear();
-			lastProgress = ShowProgress(lastProgress, currentProgress, fileSize, timer);
-			SendMessageTo(this->_udp_socket, CreateFileInfo(fileName, currentProgress, PACKAGE_COUNT, false), this->serverAddressInfo);
+		catch (runtime_error e) {
+			//Do nothing.
 		}
+
+		WriteBatchToFile(file, currentProgress);
+		lastProgress = ShowProgress(lastProgress, currentProgress, fileSize, timer);
+		done = currentProgress >= fileSize;
+		if (!done) 
+			SendMessageTo(this->_udp_socket, CreateFileInfo(fileName, currentProgress, PACKAGE_COUNT, false), this->serverAddressInfo);
 	}
 	file->close();
 	cout << "Done." << endl;
 }
 
-void UDPClient::ReceiveFile(fstream *file, fpos_t currentProgress, fpos_t fileSize)
+void UDPClient::WriteBatchToFile(fstream *file, fpos_t& currentProgress)
 {
-	fpos_t count = 0;
-	while (currentProgress < fileSize)
+	sort(this->receivedBuffer.begin(), this->receivedBuffer.end(),
+		[&](pair<fpos_t, Package*>* v_1, pair<fpos_t, Package*>* v_2)
+	{
+		return v_1->first < v_2->first;
+	});
+	for (auto i = this->receivedBuffer.begin(); i != this->receivedBuffer.end(); ++i)
+	{
+		if ((*i)->first * UDP_BUFFER_SIZE != currentProgress) continue;
+		file->write((*i)->second->data, (*i)->second->size);
+		currentProgress += UDP_BUFFER_SIZE;
+	}
+}
+
+void UDPClient::ReceiveBatch()
+{
+	fpos_t receivedCount = 0;
+	while (true)
 	{
 		try {
 			auto package = ReceiveRawDataFrom(this->_udp_socket, this->serverAddressInfo);
 			auto number = GetNumber(package);
-			receivedPackages.push_back(number);
 			auto dataSize = package->size - UDP_NUMBER_SIZE;
-			if (fpos_t(file->tellp()) != number * UDP_BUFFER_SIZE) file->seekp(number * UDP_BUFFER_SIZE);
-			file->write(package->data, dataSize);
-			currentProgress += dataSize;
-			if (++count == PACKAGE_COUNT) throw runtime_error("Packages batch received.");
+			auto index = number % PACKAGE_COUNT;
+			this->receivedBuffer[index]->first = number;
+			memcpy(this->receivedBuffer[index]->second->data, package->data, dataSize);
+			this->receivedBuffer[index]->second->size = dataSize;
+			if (++receivedCount == PACKAGE_COUNT) throw runtime_error("Packages batch received.");
 		}
 		catch (runtime_error e) {
-			file->flush();
-			throw ConnectionInterrupted(currentProgress);
+			//cout << e.what() << endl;
+			throw;
 		}
 	}
 }
@@ -80,25 +111,6 @@ fpos_t UDPClient::GetNumber(Package* package)
 		result += byte << (j << 3);
 	}
 	return result;
-}
-
-void UDPClient::GenerateExpectedPackages(fpos_t start, fpos_t fileSize)
-{
-	for (auto i = start; i < fileSize; i++)
-	{
-		this->expectedPackages.push_back(i);
-	}
-}
-
-void UDPClient::RemoveExpectedPackage(fpos_t number)
-{
-	for (auto i = this->expectedPackages.begin(); i != this->expectedPackages.end(); ++i)
-	{
-		if ((*i) != number) continue;
-		this->expectedPackages.erase(i);
-		return;
-	}
-	cout << "YYEAH" << number << endl;
 }
 
 fpos_t UDPClient::ReceiveFileSize()
