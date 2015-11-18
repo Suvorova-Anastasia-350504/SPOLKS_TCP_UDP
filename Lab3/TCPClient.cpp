@@ -56,8 +56,10 @@ fpos_t TCPClient::ReceiveFileSize()
 void TCPClient::Reconnect()
 {
 	auto reconnected = false;
+	auto delay = 5;
 	while (!reconnected)
 	{
+		Sleep(GetTimeout(TIMEOUT / delay));
 		try {
 			Close();
 			Init();
@@ -65,6 +67,7 @@ void TCPClient::Reconnect()
 			cout << "Reconnected." << endl;
 		}
 		catch (runtime_error e) {
+			if (delay != 1) delay--;
 			cout << e.what() << endl;
 		}
 	}

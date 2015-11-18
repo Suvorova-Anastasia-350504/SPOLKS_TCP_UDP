@@ -44,13 +44,13 @@
 #define DELAY 1
 #define PATH_DELIM '\\'
 #define PATH_DELIM_LINUX '/'
-#define METADATA_DELIM '|'
+#define METADATA_DELIM '\r'
 #define DEFAULT_IP "127.0.0.1"
 #define DEFAULT_PORT 22222
 #define BUFFER_SIZE 1024*16
 #define UDP_NUMBER_SIZE 4
 #define UDP_BUFFER_SIZE (BUFFER_SIZE - UDP_NUMBER_SIZE)
-#define PACKAGE_COUNT 1000
+#define PACKAGE_COUNT 100
 
 using namespace std;
 
