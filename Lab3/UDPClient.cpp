@@ -33,6 +33,7 @@ fpos_t UDPClient::ConnectToServer(string metadata)
 
 void UDPClient::DownloadFile(string fileName)
 {
+	vector<fpos_t> missingPackageOffsets;
 	auto file = new fstream();
 	OpenFile(file, GetLocalFileName(fileName));
 	fpos_t currentProgress = file->tellp();		
@@ -41,6 +42,7 @@ void UDPClient::DownloadFile(string fileName)
 	auto timer = new SpeedRater(currentProgress);
 	auto lastProgress = 0;
 	auto done = fileSize <= currentProgress;
+	int currentBatch = 0;
 	while(!done)
 	{
 		try {
@@ -50,9 +52,15 @@ void UDPClient::DownloadFile(string fileName)
 			cout << e.what() << endl;
 			break;
 		}
-		catch (runtime_error e) {
+		catch (runtime_error e) { 
 			//Do nothing.
 		}
+
+		//Batch received
+		//Check missed packages and add it to vector
+		//PACKAGE_COUNT really equal to batch size?
+		AddMissingPackages(currentBatch, missingPackageOffsets);
+
 
 		WriteBatchToFile(file, currentProgress);
 		lastProgress = ShowProgress(lastProgress, currentProgress, fileSize, timer);
@@ -92,7 +100,10 @@ void UDPClient::ReceiveBatch()
 			this->receivedBuffer[index]->first = number;
 			memcpy(this->receivedBuffer[index]->second->data, package->data, dataSize);
 			this->receivedBuffer[index]->second->size = dataSize;
-			if (++receivedCount == PACKAGE_COUNT) throw runtime_error("Packages batch received.");
+			if (++receivedCount == PACKAGE_COUNT) 
+			{
+				throw runtime_error("Packages batch received.");
+			}
 		}
 		catch (runtime_error e) {
 			//cout << e.what() << endl;
@@ -122,4 +133,13 @@ fpos_t UDPClient::ReceiveFileSize()
 string UDPClient::CreateFileInfo(string fileName, fpos_t pos, int packageCount, bool request)
 {
 	return fileName + METADATA_DELIM + to_string(pos) + METADATA_DELIM + to_string(packageCount) + METADATA_DELIM + (request ? "1" : "0");
+}
+
+void UDPClient::AddMissingPackages(int& currentBatch, vector<fpos_t>& missingPackageOffsets) 
+{
+	//
+	for (int i = currentBatch * PACKAGE_COUNT; i < (currentBatch + 1)* PACKAGE_COUNT; i++) {
+		//TODO: find i in received packages!
+		//if ()
+	}
 }

@@ -17,6 +17,7 @@ class UDPClient : public Client
 	fpos_t ConnectToServer(string metadata);
 	void UDPClient::ReceiveBatch();
 	void WriteBatchToFile(fstream* file, fpos_t& currentProgress);
+	void AddMissingPackages(int& currentBatch, vector<fpos_t>& missingPackageOffsets);
 protected:
 	fpos_t virtual ReceiveFileSize() override;
 	string CreateFileInfo(string fileName, fpos_t pos, int packageCount, bool request);
