@@ -6,7 +6,7 @@ Client::Client(string address, unsigned int port) : Base(port), address(address)
 
 string Client::CreateFileInfo(string fileName, fpos_t pos)
 {
-	return fileName + "|" + to_string(pos);
+	return fileName + METADATA_DELIM + to_string(pos);
 }
 
 fpos_t Client::StringToFileSize(string message)
