@@ -51,6 +51,7 @@
 #define UDP_NUMBER_SIZE 4
 #define UDP_BUFFER_SIZE (BUFFER_SIZE - UDP_NUMBER_SIZE)
 #define PACKAGE_COUNT 100
+#define PACKAGES_TILL_DROP 5000
 
 using namespace std;
 

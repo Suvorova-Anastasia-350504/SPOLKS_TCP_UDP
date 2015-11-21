@@ -1,6 +1,6 @@
 #pragma once
 #include "Base.h"
-#define CLIENTS_ONLINE "Clients online : " << this->tcpClients.size() << endl
+#define CLIENTS_ONLINE "Clients online : " << this->tcpClients.size() + this->udpClients.size() << endl
 #define CLIENT_INFO pair<SOCKET, fstream*>*
 
 struct TCPMetadata {
@@ -12,9 +12,10 @@ struct UDPMetadata {
 	string fileName;
 	fpos_t progress;
 	sockaddr *addr;
-	fpos_t packagesToSend;
+	fpos_t packagesTillDrop;
 	fstream *file;
 	bool requestFileSize;
+	vector<fpos_t> missedPackages;
 };
 
 class Server : public Base
@@ -27,8 +28,6 @@ class Server : public Base
 	void virtual OpenFile(fstream *file, string fileName) override;
 	void Bind(SOCKET socket);	
 	fpos_t GetFileSize(fstream *file);
-	TCPMetadata ExtractMetadata(string metadata);
-	UDPMetadata* ExtractMetadataUDP(string metadata);
 	sockaddr_in* CreateAddressInfoForServer();
 
 	//UDP
@@ -36,7 +35,10 @@ class Server : public Base
 	void SendFilePartsUDP();
 	void AddNumberToDatagram(char *buffer, fpos_t size, fpos_t number);
 	void RemoveUDPClient(vector<UDPMetadata*>::iterator& iter);
+	bool IsACK(sockaddr *client);
+	UDPMetadata* ExtractMetadataUDP(char* rawMetadata);
 	//TCP
+	TCPMetadata ExtractMetadata(string metadata);
 	SOCKET Accept();
 	void Listen();
 	void SendFilePartsTCP(fd_set &clients);

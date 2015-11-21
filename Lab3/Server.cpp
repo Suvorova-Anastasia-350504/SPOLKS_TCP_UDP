@@ -67,20 +67,16 @@ TCPMetadata Server::ExtractMetadata(string metadata)
 	return metadata_st;
 }
 
-UDPMetadata* Server::ExtractMetadataUDP(string metadata)
+UDPMetadata* Server::ExtractMetadataUDP(char* rawMetadata)
 {
-	auto metadata_st = new UDPMetadata();
-	string value;
-	stringstream ss(metadata);
-	getline(ss, value, METADATA_DELIM);
-	metadata_st->fileName = value;
-	getline(ss, value, METADATA_DELIM);
-	metadata_st->progress = stoll(value);
-	getline(ss, value, METADATA_DELIM);
-	metadata_st->packagesToSend = stoll(value);
-	getline(ss, value, '\n');
-	metadata_st->requestFileSize = value == "1";
-	return metadata_st;
+	auto metadata = new UDPMetadata();
+	auto i = 0;
+	while (rawMetadata[i] != METADATA_DELIM) metadata->fileName += rawMetadata[i++];
+	metadata->requestFileSize = rawMetadata[i++] == 1;
+	
+	//TODO : get packages number and packages itself
+
+	return metadata;
 }
 
 void Server::AddUDPClient()
@@ -88,7 +84,11 @@ void Server::AddUDPClient()
 	try
 	{		
 		auto clientsInfo = new sockaddr();
-		auto metadata = ExtractMetadataUDP(ReceiveMessageFrom(this->_udp_socket, clientsInfo));
+		auto rawMetadata = ReceiveRawDataFrom(this->_udp_socket, clientsInfo)->data;
+		
+		if (IsACK(clientsInfo)) return;
+
+		auto metadata = ExtractMetadataUDP(rawMetadata);		
 		metadata->file = new fstream();
 		try	{
 			OpenFile(metadata->file, metadata->fileName);
@@ -96,56 +96,48 @@ void Server::AddUDPClient()
 			SendMessageTo(this->_udp_socket, e.what(), clientsInfo);
 			throw;
 		}
-		auto fileSize = GetFileSize(metadata->file);
+
 		if (metadata->requestFileSize)
 		{
+			auto fileSize = GetFileSize(metadata->file);
 			SendMessageTo(this->_udp_socket, to_string(fileSize), clientsInfo);
 		}
 		
 		metadata->file->seekg(metadata->progress);
-		metadata->packagesToSend = metadata->packagesToSend == 0 ?
-			PACKAGE_COUNT : metadata->packagesToSend;
+		metadata->packagesTillDrop = PACKAGES_TILL_DROP;
 		metadata->addr = clientsInfo;
-		//FIXME : this->udpClients.push_back(metadata);
-		auto _client = find_if(this->udpClients.begin(), this->udpClients.end(), [&](UDPMetadata* client)
-		{
-			return client->addr->sa_data == client->addr->sa_data;
-		});
-		if (_client == this->udpClients.end()) this->udpClients.push_back(metadata);
-		else
-		{
-			cout << "replaced" << endl;
-			_client = this->udpClients.insert(_client, metadata);
-			this->udpClients.erase(++_client);			
-		}		
+
+		this->udpClients.push_back(metadata);				
 	}
 	catch (runtime_error e)
 	{
+		//file not found
 	}
 }
 
 void Server::SendFilePartsUDP()
 {
-	for (auto client = this->udpClients.begin(); client != this->udpClients.end(); ++client)
+	for (auto client = this->udpClients.begin();; ++client)
 	{
 		auto metadata = *client;
+		auto missedPackage = false;
+		if (metadata->missedPackages.size() > 0) {
+			missedPackage = true;
+			metadata->file->seekg(metadata->missedPackages[0]);
+			metadata->missedPackages.erase(metadata->missedPackages.begin());
+		}
 		auto file = metadata->file;
 		auto packageNumber = file->tellg() / UDP_BUFFER_SIZE;
 		file->read(buffer, UDP_BUFFER_SIZE);
 		auto dataSize = file->gcount();
 		AddNumberToDatagram(buffer, dataSize, packageNumber);
 		SendRawDataTo(this->_udp_socket, buffer, dataSize + UDP_NUMBER_SIZE, metadata->addr);
-		if (--metadata->packagesToSend <= 0)
-		{
-			RemoveUDPClient(client);
-			if (client == this->udpClients.end()) break;
-		}
-		if (file->eof())
-		{
+		if (--metadata->packagesTillDrop <= 0) RemoveUDPClient(client); // disconnected
+		if (file->eof() || (missedPackage && metadata->missedPackages.size() == 0) ) {
 			RemoveUDPClient(client);
 			cout << "UDP sending finished." << endl;
-			if (client == this->udpClients.end()) break;
 		}
+		if (client == this->udpClients.end()) break;
 	}
 }
 
@@ -153,7 +145,7 @@ void Server::AddNumberToDatagram(char* buffer, fpos_t size, fpos_t number)
 {
 	for (fpos_t i = 0xFF, j = 0; j < UDP_NUMBER_SIZE - 1; i = i << 8, j++)
 	{
-		auto byte = (number & i) >> j * 8;
+		auto byte = (unsigned char)((number & i) >> j * 8);
 		buffer[size + j] = byte;
 	}
 }
@@ -165,6 +157,19 @@ void Server::RemoveUDPClient(vector<UDPMetadata*>::iterator& iter)
 	delete clientInfo->file;
 	delete clientInfo->addr;
 	iter = this->udpClients.erase(iter);
+}
+
+bool Server::IsACK(sockaddr* client) {
+
+	auto _client = find_if(this->udpClients.begin(), this->udpClients.end(), [&](UDPMetadata* clientMetadata)
+	{
+		return memcmp(clientMetadata->addr->sa_data, client->sa_data, 14) == 0;
+	});
+	if (_client != this->udpClients.end()) {	//ACK
+		(*_client)->packagesTillDrop = PACKAGES_TILL_DROP;
+		return true;
+	}
+	return false;
 }
 
 void Server::Listen()
@@ -259,7 +264,6 @@ void Server::Run()
 		auto clients = this->clientsSet;
 		auto servers = this->serverSet;
 		auto count = select(FD_SETSIZE, &servers, &clients, NULL, this->udpClients.size() != 0 ? nullDelay : NULL);
-		if (this->udpClients.size() != 0) SendFilePartsUDP();
 		if (count <= 0) continue;
 		if (FD_ISSET(this->_tcp_socket, &servers) > 0)
 		{
@@ -271,10 +275,12 @@ void Server::Run()
 		{
 			count--;
 			AddUDPClient();
+			cout << CLIENTS_ONLINE;
 		}
 		if (count > 0)
 		{
 			SendFilePartsTCP(clients);
 		}
+		if (this->udpClients.size() != 0) SendFilePartsUDP();
 	}
 }
