@@ -77,6 +77,25 @@ TIME_STRUCT Base::GetTimeout(unsigned time)
 	return timeout;
 }
 
+fpos_t Base::GetNumber(char* data, fpos_t startPosition) {
+	fpos_t result = 0;	
+	for (fpos_t i = 0xFF, j = 0; j < UDP_NUMBER_SIZE - 1; j++, i <<= 8)
+	{
+		auto byte = (unsigned char) data[startPosition + j];
+		result += byte << (j << 3);
+	}
+	return result;
+}
+
+void Base::AddNumberToDatagram(char* buffer, fpos_t startPosition, fpos_t number)
+{
+	for (fpos_t i = 0xFF, j = 0; j < UDP_NUMBER_SIZE - 1; i = i << 8, j++)
+	{
+		auto byte = (unsigned char)((number & i) >> j * 8);
+		buffer[startPosition + j] = byte;
+	}
+}
+
 sockaddr_in* Base::CreateAddressInfo(string address, unsigned int port)
 {
 	auto addressInfo = new sockaddr_in();

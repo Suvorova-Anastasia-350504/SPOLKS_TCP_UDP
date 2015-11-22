@@ -52,6 +52,7 @@
 #define UDP_BUFFER_SIZE (BUFFER_SIZE - UDP_NUMBER_SIZE)
 #define PACKAGE_COUNT 100
 #define PACKAGES_TILL_DROP 5000
+#define REQUEST_ALL_PACKAGES -1
 
 using namespace std;
 
@@ -83,6 +84,9 @@ protected:
 	void SetSendTimeout(SOCKET socket);
 	void SetSendTimeout(SOCKET socket, TIME_STRUCT timeout);
 	TIME_STRUCT GetTimeout(unsigned time = TIMEOUT);
+
+	fpos_t GetNumber(char* data, fpos_t startPosition);
+	void AddNumberToDatagram(char *buffer, fpos_t startPosition, fpos_t number);
 
 	sockaddr_in* CreateAddressInfo(string address, unsigned int port);
 
