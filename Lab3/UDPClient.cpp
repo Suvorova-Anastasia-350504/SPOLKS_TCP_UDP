@@ -33,11 +33,11 @@ fpos_t UDPClient::ConnectToServer(string metadata)
 
 void UDPClient::DownloadFile(string fileName)
 {
-	vector<fpos_t> missingPackageOffsets;
-	auto file = new fstream();
+	file = new fstream();
+	this->fileName = fileName;
 	OpenFile(file, GetLocalFileName(fileName));
 	fpos_t currentProgress = file->tellp();		
-	auto fileSize = ConnectToServer(CreateFileInfo(fileName, currentProgress, PACKAGE_COUNT, true));	
+	fileSize = ConnectToServer(CreateFileInfo(fileName, currentProgress, PACKAGE_COUNT, true));	
 	cout << "Download started." << endl;
 	auto timer = new SpeedRater(currentProgress);
 	auto lastProgress = 0;
@@ -46,7 +46,8 @@ void UDPClient::DownloadFile(string fileName)
 	while(!done)
 	{
 		try {
-			ReceiveBatch();			
+			ProcessBatches(file, fileSize);
+			//ReceiveBatch();			
 		}
 		catch (ServerError e) {
 			cout << e.what() << endl;
@@ -56,18 +57,9 @@ void UDPClient::DownloadFile(string fileName)
 			//Do nothing.
 		}
 
-		//Batch received
-		//Check missing packages and add it to vector
-		//PACKAGE_COUNT really equal to batch size?
-		CollectMissingPackages(currentBatch, missingPackageOffsets);
-		
 		//TODO: Implement write considering lost packages 
-		WriteBatchToFile(file, currentProgress);
 		lastProgress = ShowProgress(lastProgress, currentProgress, fileSize, timer);
 
-		done = currentProgress >= fileSize;
-		if (!done) 
-			SendMessageTo(this->_udp_socket, CreateFileInfo(fileName, currentProgress, PACKAGE_COUNT, false), this->serverAddressInfo);
 	}
 	file->close();
 	cout << "Done." << endl;
@@ -132,7 +124,7 @@ string UDPClient::CreateFileInfo(string fileName, fpos_t pos, int packageCount, 
 	return fileName + METADATA_DELIM + to_string(pos) + METADATA_DELIM + to_string(packageCount) + METADATA_DELIM + (request ? "1" : "0");
 }
 
-void UDPClient::CollectMissingPackages(fpos_t& currentBatch, vector<fpos_t>& missingPackageOffsets) 
+void UDPClient::CollectMissingPackages(fpos_t& currentBatch, vector<fpos_t>& missingPackages) 
 {
 	bool packageMissed;
 	for (fpos_t i = currentBatch * PACKAGE_COUNT; i < (currentBatch + 1)* PACKAGE_COUNT; i++) 
@@ -145,7 +137,87 @@ void UDPClient::CollectMissingPackages(fpos_t& currentBatch, vector<fpos_t>& mis
 		) == this->receivedBuffer.end();
 		if (packageMissed) 
 		{
-			missingPackageOffsets.push_back(i);
+			missingPackages.push_back(i);
 		}
 	}
 }
+
+void UDPClient::ProcessBatches(fstream* file, fpos_t fileSize)
+{
+	fpos_t receivedCount = 0, currentBatch = 0;
+	fpos_t batchCount = fileSize / PACKAGE_COUNT;
+	fpos_t currentProgress = 0;
+	fpos_t lastPackageInCurrentBatch, lastReceivedPackage, packageNumber;
+	
+	Package *package;
+
+	while (true) {
+		lastPackageInCurrentBatch = (currentBatch + 1) * PACKAGE_COUNT - 1;
+		AddBatchToMissingPackages(currentBatch);
+		
+		while (true) {
+			//try {
+			package = ReceiveRawDataFrom(this->_udp_socket, this->serverAddressInfo);
+			packageNumber = GetNumber(package);
+			//auto dataSize = package->size - UDP_NUMBER_SIZE;
+			//auto index = packageNumber % PACKAGE_COUNT;
+
+			if (packageNumber * UDP_BUFFER_SIZE != currentProgress) {
+				file->seekg(packageNumber * UDP_BUFFER_SIZE);
+				currentProgress = packageNumber * UDP_BUFFER_SIZE;
+			}
+			file->write(package->data, package->size - UDP_NUMBER_SIZE);
+			currentProgress += UDP_BUFFER_SIZE;
+
+			if (packageNumber >= lastPackageInCurrentBatch) {
+				break;
+			}
+			RemoveFromMissingPackages(packageNumber);
+		}
+
+
+		SendMissingPackages();
+		if (++currentBatch > batchCount)
+		{	//batch receiving finished
+			break;
+		}
+	}
+		
+}
+
+void UDPClient::RemoveFromMissingPackages(fpos_t index) 
+{
+	//remove element with [index] value from vector
+	missingPackages.erase(std::remove(
+		missingPackages.begin(),
+		missingPackages.end(),
+		index
+		), missingPackages.end());
+	
+}
+
+
+void UDPClient::AddBatchToMissingPackages(fpos_t batch) 
+{
+	for (fpos_t i = batch * PACKAGE_COUNT; i < batch * PACKAGE_COUNT; i++) 
+	{
+		missingPackages.push_back(i);
+	}
+}
+
+void UDPClient::SendMissingPackages()  
+{
+	auto *message = new char[BUFFER_SIZE + 1];
+	auto dataSize = fileName.size() + sizeof(char)+UDP_NUMBER_SIZE + UDP_NUMBER_SIZE * missingPackages.size();
+	auto index = 0;
+	index += fileName.copy(message, fileName.size());
+	message[index++] = METADATA_DELIM;
+	AddNumberToDatagram(message, index, missingPackages.size());
+	index += UDP_NUMBER_SIZE;
+	for (auto i = missingPackages.begin(); i != missingPackages.end(); ++i) {
+		AddNumberToDatagram(message, index, (*i));
+		index += UDP_NUMBER_SIZE;
+	}
+	SendRawDataTo(this->_udp_socket, message, dataSize, serverAddressInfo);
+}
+

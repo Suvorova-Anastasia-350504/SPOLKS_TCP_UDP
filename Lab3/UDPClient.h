@@ -12,12 +12,21 @@ class UDPClient : public Client
 	sockaddr *serverAddressInfo;
 	vector<pair<fpos_t, Package*>*> receivedBuffer;
 	vector<fpos_t> receivedPackages;
+	vector<fpos_t> missingPackages;
+
+	fstream* file;
+	string fileName;
+	fpos_t fileSize;
 
 	fpos_t GetNumber(Package *package);
 	fpos_t ConnectToServer(string metadata);
-	void UDPClient::ReceiveBatch();
+	void ProcessBatches(fstream* file, fpos_t fileSize);
+	void ReceiveBatch();
 	void WriteBatchToFile(fstream* file, fpos_t& currentProgress);
-	void AddMissingPackages(fpos_t& currentBatch, vector<fpos_t>& missingPackageOffsets);
+	void CollectMissingPackages(fpos_t& currentBatch, vector<fpos_t>& missingPackages);
+	void RemoveFromMissingPackages(fpos_t index);
+	void AddBatchToMissingPackages(fpos_t batch);
+	void SendMissingPackages();
 protected:
 	fpos_t virtual ReceiveFileSize() override;
 	string CreateFileInfo(string fileName, fpos_t pos, int packageCount, bool request);
