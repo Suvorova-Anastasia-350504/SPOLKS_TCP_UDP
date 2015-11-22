@@ -19,7 +19,7 @@ class UDPClient : public Client
 	fpos_t fileSize;
 
 	fpos_t GetNumber(Package *package);
-	fpos_t ConnectToServer(string metadata);
+	fpos_t ConnectToServer();
 	void ProcessBatches(fstream* file, fpos_t fileSize);
 	void ReceiveBatch();
 	void WriteBatchToFile(fstream* file, fpos_t& currentProgress);
@@ -27,6 +27,8 @@ class UDPClient : public Client
 	void RemoveFromMissingPackages(fpos_t index);
 	void AddBatchToMissingPackages(fpos_t batch);
 	void SendMissingPackages();
+	fpos_t CreateMissingPackagesInfo(char* buffer, fpos_t bufferSize, bool requestAllPackages = false);
+	fpos_t CreateConnectionInfo(char* buffer, fpos_t bufferSize);
 protected:
 	fpos_t virtual ReceiveFileSize() override;
 	string CreateFileInfo(string fileName, fpos_t pos, int packageCount, bool request);
