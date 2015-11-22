@@ -120,7 +120,7 @@ void Server::AddUDPClient()
 
 void Server::SendFilePartsUDP()
 {
-	for (auto client = this->udpClients.begin(); client == this->udpClients.end(); ++client)
+	for (auto client = this->udpClients.begin(); client != this->udpClients.end(); ++client)
 	{
 		auto metadata = *client;
 		auto missedPackage = false;
@@ -136,7 +136,8 @@ void Server::SendFilePartsUDP()
 		AddNumberToDatagram(buffer, dataSize, packageNumber);
 		SendRawDataTo(this->_udp_socket, buffer, dataSize + UDP_NUMBER_SIZE, metadata->addr);
 		if (--metadata->packagesTillDrop <= 0) {// disconnected
-			RemoveUDPClient(client); 
+			RemoveUDPClient(client);
+			cout << "UDP client disconnected." << endl;
 			if (client == this->udpClients.end()) break;
 		}
 		if (file->eof() || (missedPackage && metadata->missedPackages.size() == 0) ) {
@@ -261,6 +262,7 @@ void Server::Run()
 		auto clients = this->clientsSet;
 		auto servers = this->serverSet;
 		auto count = select(FD_SETSIZE, &servers, &clients, NULL, this->udpClients.size() != 0 ? nullDelay : NULL);
+		if (this->udpClients.size() != 0) SendFilePartsUDP();
 		if (count <= 0) continue;
 		if (FD_ISSET(this->_tcp_socket, &servers) > 0)
 		{
@@ -278,6 +280,5 @@ void Server::Run()
 		{
 			SendFilePartsTCP(clients);
 		}
-		if (this->udpClients.size() != 0) SendFilePartsUDP();
 	}
 }
