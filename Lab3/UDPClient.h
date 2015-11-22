@@ -29,8 +29,7 @@ class UDPClient : public Client
 	void SendMissingPackages();
 	fpos_t CreateMissingPackagesInfo(char* buffer, fpos_t bufferSize, bool requestAllPackages = false);
 	fpos_t CreateConnectionInfo(char* buffer, fpos_t bufferSize);
-	void ProcessMissedPackages();
-	void initMissedPackages();
+	void InitMissingPackages();
 protected:
 	fpos_t virtual ReceiveFileSize() override;
 	string CreateFileInfo(string fileName, fpos_t pos, int packageCount, bool request);
