@@ -45,23 +45,20 @@ void UDPClient::DownloadFile(string fileName)
 	auto lastProgress = 0;
 	auto done = fileSize <= currentProgress;
 	fpos_t currentBatch = 0;
-	while(!done)
-	{
-		try {
-			ProcessBatches(file, fileSize);	
-		}
-		catch (ServerError e) {
-			cout << e.what() << endl;
-			break;
-		}
-		catch (runtime_error e) { 
-			//Do nothing.
-		}
 
-		//TODO: Implement write considering lost packages 
-		lastProgress = ShowProgress(lastProgress, currentProgress, fileSize, timer);
-
+	try {
+		ProcessBatches(file, fileSize);	
 	}
+	catch (ServerError e) {
+		cout << e.what() << endl;
+	}
+	catch (runtime_error e) { 
+		//Do nothing.
+	}
+
+	//TODO: Implement write considering lost packages 
+	lastProgress = ShowProgress(lastProgress, currentProgress, fileSize, timer);
+
 	file->close();
 	cout << "Done." << endl;
 }
@@ -160,8 +157,7 @@ void UDPClient::ProcessBatches(fstream* file, fpos_t fileSize)
 			//try {
 			package = ReceiveRawDataFrom(this->_udp_socket, this->serverAddressInfo);
 			packageNumber = GetNumber(package);
-			//auto dataSize = package->size - UDP_NUMBER_SIZE;
-			//auto index = packageNumber % PACKAGE_COUNT;
+			cout << packageNumber << endl;
 
 			if (packageNumber * UDP_BUFFER_SIZE != filePos) {
 				file->seekg(packageNumber * UDP_BUFFER_SIZE);
@@ -178,7 +174,7 @@ void UDPClient::ProcessBatches(fstream* file, fpos_t fileSize)
 
 
 		SendMissingPackages();
-		if (++currentBatch > batchCount)
+		if (++currentBatch >= batchCount)
 		{	//batch receiving finished
 			break;
 		}
