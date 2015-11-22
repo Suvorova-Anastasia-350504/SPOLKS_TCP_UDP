@@ -40,7 +40,7 @@ void UDPClient::DownloadFile(string fileName)
 	OpenFile(file, GetLocalFileName(fileName));
 	fpos_t currentProgress = file->tellp();	
 	fileSize = ConnectToServer();
-	cout << "Download started." << endl;
+	cout << "Download started. " << fileSize << endl;
 	auto timer = new SpeedRater(currentProgress);
 	auto lastProgress = 0;
 	auto done = fileSize <= currentProgress;
@@ -108,7 +108,7 @@ void UDPClient::ReceiveBatch()
 
 fpos_t UDPClient::GetNumber(Package* package)
 {
-	return Base::GetNumber(package->data, package->size);
+	return Base::GetNumber(package->data, package->size - UDP_NUMBER_SIZE);
 }
 
 fpos_t UDPClient::ReceiveFileSize()
@@ -160,7 +160,7 @@ void UDPClient::ProcessBatches(fstream* file, fpos_t fileSize)
 			cout << packageNumber << endl;
 
 			if (packageNumber * UDP_BUFFER_SIZE != filePos) {
-				file->seekg(packageNumber * UDP_BUFFER_SIZE);
+				file->seekp(packageNumber * UDP_BUFFER_SIZE);
 				filePos = packageNumber * UDP_BUFFER_SIZE;
 			}
 			file->write(package->data, package->size - UDP_NUMBER_SIZE);
