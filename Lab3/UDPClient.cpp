@@ -57,7 +57,7 @@ void UDPClient::DownloadFile(string fileName)
 		}
 
 		//Batch received
-		//Check missed packages and add it to vector
+		//Check missing packages and add it to vector
 		//PACKAGE_COUNT really equal to batch size?
 		AddMissingPackages(currentBatch, missingPackageOffsets);
 
@@ -137,8 +137,19 @@ string UDPClient::CreateFileInfo(string fileName, fpos_t pos, int packageCount, 
 
 void UDPClient::AddMissingPackages(int& currentBatch, vector<fpos_t>& missingPackageOffsets) 
 {
+	bool packageMissed;
 	//
-	for (int i = currentBatch * PACKAGE_COUNT; i < (currentBatch + 1)* PACKAGE_COUNT; i++) {
+	for (fpos_t i = currentBatch * PACKAGE_COUNT; i < (currentBatch + 1)* PACKAGE_COUNT; i++) 
+	{
+		packageMissed = find_if(
+			this->receivedBuffer.begin(),
+			this->receivedBuffer.end(),
+			[&](pair<fpos_t, Package*>* receivedPackage) { return receivedPackage->first == i; }
+		) == this->receivedBuffer.end();
+		if (packageMissed) {
+			missingPackageOffsets.push_back(i);
+		}
+		
 		//TODO: find i in received packages!
 		//if ()
 	}
