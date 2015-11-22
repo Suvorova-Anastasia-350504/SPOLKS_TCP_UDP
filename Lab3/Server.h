@@ -33,7 +33,7 @@ class Server : public Base
 	//UDP
 	void AddUDPClient();
 	void SendFilePartsUDP();
-	void AddNumberToDatagram(char *buffer, fpos_t size, fpos_t number);
+	
 	void RemoveUDPClient(vector<UDPMetadata*>::iterator& iter);
 	bool IsACK(sockaddr *client);
 	UDPMetadata* ExtractMetadataUDP(char* rawMetadata);

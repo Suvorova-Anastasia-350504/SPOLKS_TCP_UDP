@@ -70,12 +70,15 @@ TCPMetadata Server::ExtractMetadata(string metadata)
 UDPMetadata* Server::ExtractMetadataUDP(char* rawMetadata)
 {
 	auto metadata = new UDPMetadata();
-	auto i = 0;
-	while (rawMetadata[i] != METADATA_DELIM) metadata->fileName += rawMetadata[i++];
-	metadata->requestFileSize = rawMetadata[i++] == 1;
-	
-	//TODO : get packages number and packages itself
-
+	auto index = 0;
+	while (rawMetadata[index] != METADATA_DELIM) metadata->fileName += rawMetadata[index++];
+	metadata->requestFileSize = rawMetadata[index++] == 1;
+	auto missedPackagesCount = GetNumber(rawMetadata, index);
+	if (missedPackagesCount == REQUEST_ALL_PACKAGES) return metadata;
+	for (auto count = 0; count < missedPackagesCount; count++) {
+		index += UDP_NUMBER_SIZE;
+		metadata->missedPackages.push_back(GetNumber(rawMetadata, index));
+	}
 	return metadata;
 }
 
@@ -138,15 +141,6 @@ void Server::SendFilePartsUDP()
 			cout << "UDP sending finished." << endl;
 		}
 		if (client == this->udpClients.end()) break;
-	}
-}
-
-void Server::AddNumberToDatagram(char* buffer, fpos_t size, fpos_t number)
-{
-	for (fpos_t i = 0xFF, j = 0; j < UDP_NUMBER_SIZE - 1; i = i << 8, j++)
-	{
-		auto byte = (unsigned char)((number & i) >> j * 8);
-		buffer[size + j] = byte;
 	}
 }
 
