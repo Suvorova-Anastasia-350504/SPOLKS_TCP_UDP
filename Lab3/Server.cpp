@@ -72,8 +72,8 @@ UDPMetadata* Server::ExtractMetadataUDP(char* rawMetadata)
 	auto metadata = new UDPMetadata();
 	auto index = 0;
 	while (rawMetadata[index] != METADATA_DELIM) metadata->fileName += rawMetadata[index++];
-	metadata->requestFileSize = rawMetadata[index++] == 1;
-	auto missedPackagesCount = GetNumber(rawMetadata, index);
+	metadata->requestFileSize = rawMetadata[++index] == 1;
+	auto missedPackagesCount = GetNumber(rawMetadata, ++index);
 	if (missedPackagesCount == REQUEST_ALL_PACKAGES) return metadata;
 	for (auto count = 0; count < missedPackagesCount; count++) {
 		index += UDP_NUMBER_SIZE;
