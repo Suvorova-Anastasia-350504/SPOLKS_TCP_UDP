@@ -42,7 +42,7 @@ void UDPClient::DownloadFile(string fileName)
 	auto timer = new SpeedRater(currentProgress);
 	auto lastProgress = 0;
 	auto done = fileSize <= currentProgress;
-	int currentBatch = 0;
+	fpos_t currentBatch = 0;
 	while(!done)
 	{
 		try {
@@ -59,11 +59,12 @@ void UDPClient::DownloadFile(string fileName)
 		//Batch received
 		//Check missing packages and add it to vector
 		//PACKAGE_COUNT really equal to batch size?
-		AddMissingPackages(currentBatch, missingPackageOffsets);
-
-
+		CollectMissingPackages(currentBatch, missingPackageOffsets);
+		
+		//TODO: Implement write considering lost packages 
 		WriteBatchToFile(file, currentProgress);
 		lastProgress = ShowProgress(lastProgress, currentProgress, fileSize, timer);
+
 		done = currentProgress >= fileSize;
 		if (!done) 
 			SendMessageTo(this->_udp_socket, CreateFileInfo(fileName, currentProgress, PACKAGE_COUNT, false), this->serverAddressInfo);
@@ -81,7 +82,10 @@ void UDPClient::WriteBatchToFile(fstream *file, fpos_t& currentProgress)
 	});
 	for (auto i = this->receivedBuffer.begin(); i != this->receivedBuffer.end(); ++i)
 	{
-		if ((*i)->first * UDP_BUFFER_SIZE != currentProgress) continue;
+		if ((*i)->first * UDP_BUFFER_SIZE != currentProgress) {
+			file->seekg((*i)->first * UDP_BUFFER_SIZE);
+			currentProgress = (*i)->first * UDP_BUFFER_SIZE;
+		}
 		file->write((*i)->second->data, (*i)->second->size);
 		currentProgress += UDP_BUFFER_SIZE;
 	}
@@ -135,22 +139,20 @@ string UDPClient::CreateFileInfo(string fileName, fpos_t pos, int packageCount, 
 	return fileName + METADATA_DELIM + to_string(pos) + METADATA_DELIM + to_string(packageCount) + METADATA_DELIM + (request ? "1" : "0");
 }
 
-void UDPClient::AddMissingPackages(int& currentBatch, vector<fpos_t>& missingPackageOffsets) 
+void UDPClient::CollectMissingPackages(fpos_t& currentBatch, vector<fpos_t>& missingPackageOffsets) 
 {
 	bool packageMissed;
-	//
 	for (fpos_t i = currentBatch * PACKAGE_COUNT; i < (currentBatch + 1)* PACKAGE_COUNT; i++) 
 	{
+		//TODO: replace find_if by sort + ...
 		packageMissed = find_if(
 			this->receivedBuffer.begin(),
 			this->receivedBuffer.end(),
 			[&](pair<fpos_t, Package*>* receivedPackage) { return receivedPackage->first == i; }
 		) == this->receivedBuffer.end();
-		if (packageMissed) {
+		if (packageMissed) 
+		{
 			missingPackageOffsets.push_back(i);
 		}
-		
-		//TODO: find i in received packages!
-		//if ()
 	}
 }
