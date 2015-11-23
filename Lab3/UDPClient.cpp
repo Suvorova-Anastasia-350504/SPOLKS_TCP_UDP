@@ -160,18 +160,25 @@ void UDPClient::ProcessBatches(fstream* file, fpos_t fileSize)
 		
 		while (true) {
 			//try {
-			package = ReceiveRawDataFrom(this->_udp_socket, this->serverAddressInfo);
+			try {
+				package = ReceiveRawDataFrom(this->_udp_socket, this->serverAddressInfo);
+			}catch(runtime_error e) {
+				cout << "timeout error" << endl;
+				throw;
+			}
+			
 			packageNumber = GetNumber(package);
 
 			if (packageNumber * UDP_BUFFER_SIZE != filePos) {
 				file->seekp(packageNumber * UDP_BUFFER_SIZE);
 				filePos = packageNumber * UDP_BUFFER_SIZE;
 			}
-			cout << packageNumber << endl;
+			//cout << packageNumber << endl;l;
+			cout << missingPackages.size() << endl;
 			file->write(package->data, package->size - UDP_NUMBER_SIZE);
 			filePos += UDP_BUFFER_SIZE;
 
-			//RemoveFromMissingPackages(packageNumber);
+			RemoveFromMissingPackages(packageNumber);
 			if (++packageCount >= PACKAGE_COUNT) 
 			{
 				break;
@@ -180,7 +187,8 @@ void UDPClient::ProcessBatches(fstream* file, fpos_t fileSize)
 		if (missingPackages.size() > 0) {
 			//SEND ASK
 			//cout << "SEND ASK" << "MISSING PACKAGES SIZE" << missingPackages.size() << endl;
-			SendMessageTo(this->_udp_socket, "ASK", this->serverAddressInfo);
+			SendMessageTo(this->_udp_socket, ACK, this->serverAddressInfo);
+			//SendMissingPackages();
 		} else {
 			break;
 		}
@@ -190,13 +198,13 @@ void UDPClient::ProcessBatches(fstream* file, fpos_t fileSize)
 void UDPClient::RemoveFromMissingPackages(fpos_t index) 
 {
 	//remove element with [index] value from vector
-	missingPackages.erase(
-		find(missingPackages.begin(), 
+	auto item = find(missingPackages.begin(),
 		missingPackages.end(),
 		index
-		)
 		);
-	
+	if (item != missingPackages.end()) {	
+		missingPackages.erase(item);
+	}	
 }
 
 
@@ -218,24 +226,21 @@ void UDPClient::SendMissingPackages()
 fpos_t UDPClient::CreateMissingPackagesInfo(char* buffer, fpos_t bufferSize, bool requestAllPackages)
 {
 	//TODO: check too much missing packages
-	auto sendedPackagesCount = missingPackages.size();
-	auto dataSize = fileName.size() + sizeof(char) * 2 + UDP_NUMBER_SIZE + UDP_NUMBER_SIZE * missingPackages.size();
-	if (dataSize > UDP_BUFFER_SIZE) {
-		sendedPackagesCount = UDP_BUFFER_SIZE / UDP_NUMBER_SIZE;
-	}
+	auto metadataSize = fileName.size() + sizeof(char) * 2 + UDP_NUMBER_SIZE;
+	auto maxPackageCount = (UDP_BUFFER_SIZE - metadataSize) / UDP_NUMBER_SIZE;
+	auto packagesCount = maxPackageCount > missingPackages.size() ? missingPackages.size() : maxPackageCount;
+	auto dataSize = metadataSize + packagesCount * UDP_NUMBER_SIZE;
 	auto index = 0;
 	index += fileName.copy(buffer, fileName.size());
 	buffer[index++] = METADATA_DELIM;
 	//requestFileSize = false
 	buffer[index++] = 0;
-	AddNumberToDatagram(buffer, index, requestAllPackages ? REQUEST_ALL_PACKAGES : missingPackages.size());
+	AddNumberToDatagram(buffer, index, requestAllPackages ? REQUEST_ALL_PACKAGES : packagesCount);
 	index += UDP_NUMBER_SIZE;
-	for (auto i = missingPackages.begin(); i != missingPackages.end(); ++i) {
+	cout << packagesCount << endl;
+	for (auto i = missingPackages.begin(); i != missingPackages.begin() + packagesCount; ++i) {
 		AddNumberToDatagram(buffer, index, (*i));
 		index += UDP_NUMBER_SIZE;
-		if (--sendedPackagesCount <= 0) {
-			break;
-		}
 	}
 	return dataSize;
 }

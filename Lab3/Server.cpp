@@ -89,7 +89,7 @@ void Server::AddUDPClient()
 		auto clientsInfo = new sockaddr();
 		auto rawMetadata = ReceiveRawDataFrom(this->_udp_socket, clientsInfo)->data;
 		
-		if (IsACK(clientsInfo)) return;
+		if (IsACK(clientsInfo) || memcmp(rawMetadata, ACK, 3) == 0) return;
 
 		auto metadata = ExtractMetadataUDP(rawMetadata);		
 		metadata->file = new fstream();
@@ -126,7 +126,7 @@ void Server::SendFilePartsUDP()
 		auto missedPackage = false;
 		if (metadata->missedPackages.size() > 0) {
 			missedPackage = true;
-			metadata->file->seekg(metadata->missedPackages[0]);
+			metadata->file->seekg(metadata->missedPackages[0] * UDP_BUFFER_SIZE);
 			metadata->missedPackages.erase(metadata->missedPackages.begin());
 		}
 		auto file = metadata->file;
