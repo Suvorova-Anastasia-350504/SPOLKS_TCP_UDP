@@ -10,7 +10,7 @@
 class UDPClient : public Client
 {
 	sockaddr *serverAddressInfo;
-	vector<pair<fpos_t, Package*>*> receivedBuffer;
+	vector<pair<fpos_t, char*>*> receivedBuffer;
 	vector<fpos_t> receivedPackages;
 	vector<fpos_t> missingPackages;
 
