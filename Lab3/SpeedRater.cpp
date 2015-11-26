@@ -1,5 +1,4 @@
 #include "SpeedRater.h"
-
 SpeedRater::SpeedRater(long long startPosition)
 {
 	this->startPosition = startPosition;
