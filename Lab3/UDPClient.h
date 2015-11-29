@@ -1,5 +1,6 @@
 #pragma once
 #include "Client.h"
+#include "old/ProgressHolder.h"
 
 #ifdef _WIN32
 #define UDP_RECV_TIMEOUT 100
@@ -21,12 +22,11 @@ class UDPClient : public Client
 	fpos_t GetNumber(Package *package);
 	fpos_t ConnectToServer();
 	void ProcessBatches(fstream* file, fpos_t fileSize);
-	void ReceiveBatch();
-	void WriteBatchToFile(fstream* file, fpos_t& currentProgress);
-	void CollectMissingPackages(fpos_t& currentBatch, vector<fpos_t>& missingPackages);
 	void RemoveFromMissingPackages(fpos_t index);
 	void AddBatchToMissingPackages(fpos_t batch);
 	void SendMissingPackages();
+	void SendMissingPackages(fpos_t lastReceivedPackage);
+	fpos_t CreateMissingPackagesInfo(char* buffer, fpos_t bufferSize, fpos_t lastReceivedPackage, bool requestAllPackages = false);
 	fpos_t CreateMissingPackagesInfo(char* buffer, fpos_t bufferSize, bool requestAllPackages = false);
 	fpos_t CreateConnectionInfo(char* buffer, fpos_t bufferSize);
 	void InitMissingPackages();
