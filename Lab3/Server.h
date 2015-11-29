@@ -19,6 +19,7 @@ struct UDPMetadata {
 	fpos_t delay;
 	fpos_t currentDelay;
 	bool returnAllPackages;
+	fpos_t lastProgress;
 };
 
 class Server : public Base

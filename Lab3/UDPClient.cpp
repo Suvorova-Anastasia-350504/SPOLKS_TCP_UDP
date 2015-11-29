@@ -65,7 +65,7 @@ void UDPClient::DownloadFile(string fileName)
 
 	//TODO: Implement write considering lost packages 
 	ShowProgress(0, fileSize, fileSize, timer);
-	progressHolder->logFinish();
+	//progressHolder->logFinish();
 
 	file->close();
 	cout << "Done." << endl;
@@ -94,7 +94,7 @@ void UDPClient::ProcessBatches(fstream* file, fpos_t fileSize)
 	fpos_t packageCount;
 	
 	Package *package;
-	
+	//fstream log("log.txt", ios::out);
 	while (true) {
 		packageCount = 0;
 		
@@ -103,7 +103,7 @@ void UDPClient::ProcessBatches(fstream* file, fpos_t fileSize)
 			package = ReceiveRawDataFrom(this->_udp_socket, this->serverAddressInfo);
 			
 			packageNumber = GetNumber(package);
-			
+			//log << packageNumber << endl;
 			if (packageNumber * UDP_BUFFER_SIZE != filePos) {
 				file->seekp(packageNumber * UDP_BUFFER_SIZE);
 				filePos = packageNumber * UDP_BUFFER_SIZE;
@@ -111,9 +111,10 @@ void UDPClient::ProcessBatches(fstream* file, fpos_t fileSize)
 			
 			file->write(package->data, package->size - UDP_NUMBER_SIZE);
 			filePos += UDP_BUFFER_SIZE;
-
+			
 			RemoveFromMissingPackages(packageNumber);
-			if (++packageCount >= PACKAGE_COUNT) 
+			//log << missingPackages.size() << endl;
+			if (++packageCount >= PACKAGE_COUNT)
 			{
 				break;
 			}
@@ -124,6 +125,8 @@ void UDPClient::ProcessBatches(fstream* file, fpos_t fileSize)
 			//SEND ASK
 			//cout << "SEND ASK" << endl;
 			SendMissingPackages();
+			//log.close();
+			//throw 1;
 		} else {
 			//SendMessageTo(this->_udp_socket, ACK, this->serverAddressInfo);
 			break;
@@ -155,9 +158,9 @@ void UDPClient::AddBatchToMissingPackages(fpos_t batch)
 
 void UDPClient::SendMissingPackages()  
 {
-	auto *message = new char[UDP_BUFFER_SIZE];
-	auto dataSize = CreateMissingPackagesInfo(message, UDP_BUFFER_SIZE);
-	SendRawDataTo(this->_udp_socket, message, dataSize, serverAddressInfo);
+	//auto *message = new char[UDP_BUFFER_SIZE];
+	auto dataSize = CreateMissingPackagesInfo(buffer, UDP_BUFFER_SIZE);
+	SendRawDataTo(this->_udp_socket, buffer, dataSize, serverAddressInfo);
 }
 
 fpos_t UDPClient::CreateMissingPackagesInfo(char* buffer, fpos_t bufferSize, bool requestAllPackages)

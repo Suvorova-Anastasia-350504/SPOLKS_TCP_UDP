@@ -80,7 +80,8 @@ UDPMetadata* Server::ExtractMetadataUDP(char* rawMetadata)
 		index += UDP_NUMBER_SIZE;
 		metadata->missedPackages.push_back(GetNumber(rawMetadata, index));
 	}
-	cout << metadata->missedPackages[0] << endl;
+	cout << metadata->missedPackages.size() << "  " << metadata->missedPackages[0] << endl;
+
 	return metadata;
 }
 
@@ -128,7 +129,7 @@ void Server::SendFilePartsUDP()
 	for (auto client = this->udpClients.begin(); client != this->udpClients.end(); ++client)
 	{
 		auto metadata = *client;
-		if (--metadata->currentDelay != 0) continue;
+		if (--metadata->currentDelay > 0) continue;
 		
 		metadata->currentDelay = metadata->delay;
 		auto file = metadata->file;
@@ -149,13 +150,13 @@ void Server::SendFilePartsUDP()
 		AddNumberToDatagram(buffer, dataSize, packageNumber);
 		SendRawDataTo(this->_udp_socket, buffer, dataSize + UDP_NUMBER_SIZE, metadata->addr);
 		
-		if (--metadata->packagesTillDrop <= 0 ||
-			(!metadata->returnAllPackages && metadata->missedPackages.size() == 0)) {
+		if (--metadata->packagesTillDrop <= 0) {
 			RemoveUDPClient(client);
 			cout << "UDP client disconnected." << endl;
 			if (client == this->udpClients.end()) break;
 		}
-		if (file->eof()) {
+		if (file->eof() ||
+			(!metadata->returnAllPackages && metadata->missedPackages.size() == 0)) {
 			RemoveUDPClient(client);
 			cout << "UDP sending finished." << endl;
 			if (client == this->udpClients.end()) break;
@@ -183,8 +184,10 @@ bool Server::IsACK(sockaddr* client, UDPMetadata* metadata) {
 		clientMeta->packagesTillDrop = PACKAGES_TILL_DROP;
 		clientMeta->missedPackages = metadata->missedPackages;
 		clientMeta->delay = 100;
-		clientMeta->currentDelay = clientMeta->delay;
+		//clientMeta->delay = (clientMeta->progress - clientMeta->lastProgress) / UDP_BUFFER_SIZE / (double)PACKAGE_COUNT;
+
 		clientMeta->lastProgress = clientMeta->progress;
+		clientMeta->currentDelay = clientMeta->delay;
 		return true;
 	}
 	return false;

@@ -3,7 +3,7 @@
 #include "old/ProgressHolder.h"
 
 #ifdef _WIN32
-#define UDP_RECV_TIMEOUT 100
+#define UDP_RECV_TIMEOUT 500
 #else
 #define UDP_RECV_TIMEOUT 100000
 #endif
