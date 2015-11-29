@@ -74,11 +74,13 @@ UDPMetadata* Server::ExtractMetadataUDP(char* rawMetadata)
 	while (rawMetadata[index] != METADATA_DELIM) metadata->fileName += rawMetadata[index++];
 	metadata->requestFileSize = rawMetadata[++index] == 1;
 	auto missedPackagesCount = GetNumber(rawMetadata, ++index);
-	if (missedPackagesCount == REQUEST_ALL_PACKAGES) return metadata;
+	metadata->returnAllPackages = missedPackagesCount == REQUEST_ALL_PACKAGES;
+	if (metadata->returnAllPackages) return metadata;
 	for (auto count = 0; count < missedPackagesCount; count++) {
 		index += UDP_NUMBER_SIZE;
 		metadata->missedPackages.push_back(GetNumber(rawMetadata, index));
 	}
+	cout << metadata->missedPackages[0] << endl;
 	return metadata;
 }
 
@@ -89,9 +91,10 @@ void Server::AddUDPClient()
 		auto clientsInfo = new sockaddr();
 		auto rawMetadata = ReceiveRawDataFrom(this->_udp_socket, clientsInfo)->data;
 		
-		if (IsACK(clientsInfo) || memcmp(rawMetadata, ACK, 3) == 0) return;
+		auto metadata = ExtractMetadataUDP(rawMetadata);
 
-		auto metadata = ExtractMetadataUDP(rawMetadata);		
+		if (IsACK(clientsInfo, metadata) || memcmp(rawMetadata, ACK, 3) == 0) return;
+						
 		metadata->file = new fstream();
 		try	{
 			OpenFile(metadata->file, metadata->fileName);
@@ -109,6 +112,8 @@ void Server::AddUDPClient()
 		metadata->file->seekg(metadata->progress);
 		metadata->packagesTillDrop = PACKAGES_TILL_DROP;
 		metadata->addr = clientsInfo;
+		metadata->delay = 100;
+		metadata->currentDelay = 10000;
 
 		this->udpClients.push_back(metadata);				
 	}
@@ -122,29 +127,35 @@ void Server::SendFilePartsUDP()
 {
 	for (auto client = this->udpClients.begin(); client != this->udpClients.end(); ++client)
 	{
-		
 		auto metadata = *client;
-		//if (metadata->packagesTillDrop == 0) continue;
-		auto missedPackage = false;
+		if (--metadata->currentDelay != 0) continue;
+		
+		metadata->currentDelay = metadata->delay;
+		auto file = metadata->file;
 		if (metadata->missedPackages.size() > 0) {
-			missedPackage = true;
-			metadata->file->seekg(metadata->missedPackages[0] * UDP_BUFFER_SIZE);
+			file->seekg(metadata->missedPackages[0] * UDP_BUFFER_SIZE);
 			metadata->missedPackages.erase(metadata->missedPackages.begin());
 		}
-		auto file = metadata->file;
+		else {
+			file->seekg(metadata->progress);
+			metadata->progress += UDP_BUFFER_SIZE;
+		}
+		
 		auto packageNumber = file->tellg() / UDP_BUFFER_SIZE;
-		///if (packageNumber % 8 == 0) Sleep(1);
 		file->read(buffer, UDP_BUFFER_SIZE);
 		auto dataSize = file->gcount();
 		//cout << packageNumber << endl;
+
 		AddNumberToDatagram(buffer, dataSize, packageNumber);
 		SendRawDataTo(this->_udp_socket, buffer, dataSize + UDP_NUMBER_SIZE, metadata->addr);
-		if (--metadata->packagesTillDrop <= 0) {// disconnected
+		
+		if (--metadata->packagesTillDrop <= 0 ||
+			(!metadata->returnAllPackages && metadata->missedPackages.size() == 0)) {
 			RemoveUDPClient(client);
 			cout << "UDP client disconnected." << endl;
 			if (client == this->udpClients.end()) break;
 		}
-		if (file->eof() || (missedPackage && metadata->missedPackages.size() == 0) ) {
+		if (file->eof()) {
 			RemoveUDPClient(client);
 			cout << "UDP sending finished." << endl;
 			if (client == this->udpClients.end()) break;
@@ -161,14 +172,19 @@ void Server::RemoveUDPClient(vector<UDPMetadata*>::iterator& iter)
 	iter = this->udpClients.erase(iter);
 }
 
-bool Server::IsACK(sockaddr* client) {
+bool Server::IsACK(sockaddr* client, UDPMetadata* metadata) {
 
 	auto _client = find_if(this->udpClients.begin(), this->udpClients.end(), [&](UDPMetadata* clientMetadata)
 	{
 		return memcmp(clientMetadata->addr->sa_data, client->sa_data, 14) == 0;
 	});
 	if (_client != this->udpClients.end()) {	//ACK
-		(*_client)->packagesTillDrop = PACKAGES_TILL_DROP;
+		auto clientMeta = (*_client);
+		clientMeta->packagesTillDrop = PACKAGES_TILL_DROP;
+		clientMeta->missedPackages = metadata->missedPackages;
+		clientMeta->delay = 100;
+		clientMeta->currentDelay = clientMeta->delay;
+		clientMeta->lastProgress = clientMeta->progress;
 		return true;
 	}
 	return false;
@@ -261,7 +277,7 @@ void Server::AddTCPClient()
 void Server::Run()
 {
 	auto nullDelay = new timeval();
-	nullDelay->tv_usec = 1;
+	//nullDelay->tv_usec = 1;
 	while (true)
 	{
 		auto clients = this->clientsSet;

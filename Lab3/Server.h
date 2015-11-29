@@ -16,6 +16,9 @@ struct UDPMetadata {
 	fstream *file;
 	bool requestFileSize;
 	vector<fpos_t> missedPackages;
+	fpos_t delay;
+	fpos_t currentDelay;
+	bool returnAllPackages;
 };
 
 class Server : public Base
@@ -35,7 +38,7 @@ class Server : public Base
 	void SendFilePartsUDP();
 	
 	void RemoveUDPClient(vector<UDPMetadata*>::iterator& iter);
-	bool IsACK(sockaddr *client);
+	bool IsACK(sockaddr *client, UDPMetadata* rawMetadata);
 	UDPMetadata* ExtractMetadataUDP(char* rawMetadata);
 	//TCP
 	TCPMetadata ExtractMetadata(string metadata);
