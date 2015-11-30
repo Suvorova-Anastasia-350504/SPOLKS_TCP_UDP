@@ -1,15 +1,15 @@
 #include "Client.h"
 
-Client::Client(string address, unsigned int port) : Base(port), address(address)
+Client::Client(std::string address, unsigned int port) : Base(port), address(address)
 {
 }
 
-string Client::CreateFileInfo(string fileName, fpos_t pos)
+std::string Client::CreateFileInfo(std::string fileName, fpos_t pos)
 {
 	return fileName + METADATA_DELIM + to_string(pos);
 }
 
-fpos_t Client::StringToFileSize(string message)
+fpos_t Client::StringToFileSize(std::string message)
 {
 	fpos_t fileSize = 0;
 	try {
@@ -28,18 +28,18 @@ sockaddr_in* Client::CreateAddressInfoForClient()
 }
 
 //returns file's name without relative path
-string Client::GetLocalFileName(string fileName)
+std::string Client::GetLocalFileName(std::string fileName)
 {
 	//for linux only
 	replace(fileName.begin(), fileName.end(), PATH_DELIM_LINUX, PATH_DELIM);
 	stringstream fileName_ss;
 	fileName_ss << fileName;
-	string realFileName;
+	std::string realFileName;
 	while (getline(fileName_ss, realFileName, PATH_DELIM));
 	return realFileName;
 }
 
-void Client::OpenFile(fstream *file, string fileName)
+void Client::OpenFile(fstream *file, std::string fileName)
 {
 	file->open(fileName, ios::in);
 	if (file->is_open())

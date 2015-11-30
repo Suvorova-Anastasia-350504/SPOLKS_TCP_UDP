@@ -24,7 +24,7 @@ void Base::CreateTCPSocket()
 	this->_tcp_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (this->_tcp_socket == INVALID_SOCKET)
 	{
-		throw runtime_error(EX_SOCKET_ERROR);
+		throw std::runtime_error(EX_SOCKET_ERROR);
 	}
 }
 
@@ -33,7 +33,7 @@ void Base::CreateUDPSocket()
 	this->_udp_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (this->_udp_socket == INVALID_SOCKET)
 	{
-		throw runtime_error(EX_SOCKET_ERROR);
+		throw std::runtime_error(EX_SOCKET_ERROR);
 	}
 }
 
@@ -47,7 +47,7 @@ void Base::SetReceiveTimeout(SOCKET socket, TIME_STRUCT timeout)
 {
 	auto result = setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
 	if (result == SOCKET_ERROR) {
-		throw runtime_error(EX_SET_TIMEOUT_ERROR);
+		throw std::runtime_error(EX_SET_TIMEOUT_ERROR);
 	}
 }
 
@@ -61,7 +61,7 @@ void Base::SetSendTimeout(SOCKET socket, TIME_STRUCT timeout)
 {
 	auto result = setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, (const char*)&timeout, sizeof(timeout));
 	if (result == SOCKET_ERROR) {
-		throw runtime_error(EX_SET_TIMEOUT_ERROR);
+		throw std::runtime_error(EX_SET_TIMEOUT_ERROR);
 	}
 }
 
@@ -96,7 +96,7 @@ void Base::AddNumberToDatagram(char* buffer, fpos_t startPosition, fpos_t number
 	}
 }
 
-sockaddr_in* Base::CreateAddressInfo(string address, unsigned int port)
+sockaddr_in* Base::CreateAddressInfo(std::string address, unsigned int port)
 {
 	auto addressInfo = new sockaddr_in();
 	addressInfo->sin_family = AF_INET;
@@ -105,13 +105,13 @@ sockaddr_in* Base::CreateAddressInfo(string address, unsigned int port)
     saddrinfo->ai_family = AF_INET;
     if (getaddrinfo(address.c_str(), NULL, saddrinfo, &saddrinfo) != 0)
 	{
-		throw runtime_error(EX_WRONG_IP);
+		throw std::runtime_error(EX_WRONG_IP);
 	}
     addressInfo->sin_addr = ((sockaddr_in*)saddrinfo->ai_addr)->sin_addr;
 	return addressInfo;
 }
 
-void Base::SendMessageTo(SOCKET socket, string message, sockaddr* to)
+void Base::SendMessageTo(SOCKET socket, std::string message, sockaddr* to)
 {
 	message += "\n";
 	SendRawDataTo(socket, message.c_str(), message.size(), to);
@@ -122,7 +122,7 @@ size_t Base::SendRawData(SOCKET socket, const char *data, size_t size)
 	auto result = send(socket, data, size, NULL);
 	if (result == SOCKET_ERROR || result == 0)
 	{
-		throw runtime_error(EX_SENDING_FAILED);
+		throw std::runtime_error(EX_SENDING_FAILED);
 	}
 	return result;
 }
@@ -132,18 +132,18 @@ size_t Base::SendRawDataTo(SOCKET socket, const char* data, size_t size, sockadd
 	auto result = sendto(socket, data, size, NULL, to, sizeof(*to));
 	if (result == SOCKET_ERROR || result == 0)
 	{
-		throw runtime_error(EX_SENDING_FAILED);
+		throw std::runtime_error(EX_SENDING_FAILED);
 	}
 	return result;
 }
 
-void Base::SendMessage(SOCKET socket, string message)
+void Base::SendMessage(SOCKET socket, std::string message)
 {
 	message += "\n";
 	this->SendRawData(socket, message.c_str(), message.size());
 }
 
-string Base::ReceiveMessage(SOCKET socket)
+std::string Base::ReceiveMessage(SOCKET socket)
 {
 	Package *package = NULL;
 	char *newString = NULL;
@@ -152,14 +152,14 @@ string Base::ReceiveMessage(SOCKET socket)
 		newString = strchr(package->data, '\n');
 	} while (newString == NULL);
 	package = this->ReceiveRawData(socket, newString - package->data + 1);
-	return string(package->data);
+	return std::string(package->data);
 }
 
-string Base::ReceiveMessageFrom(SOCKET socket, sockaddr* from)
+std::string Base::ReceiveMessageFrom(SOCKET socket, sockaddr* from)
 {
 	Package *package = NULL;
 	package = ReceiveRawDataFrom(socket, from, UDP_BUFFER_SIZE, NULL);
-	return string(package->data);
+	return std::string(package->data);
 }
 
 void Base::CheckRecvResult(int result)
@@ -168,9 +168,9 @@ void Base::CheckRecvResult(int result)
 		return;
 	}
 	if (result == 0) {
-		throw runtime_error(EX_CONNECTION_CLOSED);
+		throw std::runtime_error(EX_CONNECTION_CLOSED);
 	}
-	throw runtime_error(EX_CONNECTION_INTERRUPTED);
+	throw std::runtime_error(EX_CONNECTION_INTERRUPTED);
 }
 
 Package* Base::PeekRawData(SOCKET socket)

@@ -25,7 +25,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/time.h>
-#include <string.h>
+#include <std::string.h>
 
 #define TIMEOUT 5000000
 #define SERVER_TIMEOUT TIMEOUT - 2000000
@@ -55,8 +55,6 @@
 #define REQUEST_ALL_PACKAGES 0
 #define ACK "ACK"
 
-using namespace std;
-
 struct Package {
 	char *data;
 	size_t size;
@@ -75,7 +73,7 @@ protected:
 	SOCKET _tcp_socket;
 	SOCKET _udp_socket;
 
-	void virtual OpenFile(fstream *file, string fileName) = 0;
+	void virtual OpenFile(std::fstream *file, std::string fileName) = 0;
 
 	void CreateTCPSocket();
 	void CreateUDPSocket();
@@ -89,15 +87,15 @@ protected:
 	fpos_t GetNumber(char* data, fpos_t startPosition);
 	void AddNumberToDatagram(char *buffer, fpos_t startPosition, fpos_t number);
 
-	sockaddr_in* CreateAddressInfo(string address, unsigned int port);
+	sockaddr_in* CreateAddressInfo(std::string address, unsigned int port);
 
-	void SendMessageTo(SOCKET socket, string message, sockaddr *to);
-	void SendMessage(SOCKET socket, string message);
+	void SendMessageTo(SOCKET socket, std::string message, sockaddr *to);
+	void SendMessage(SOCKET socket, std::string message);
 	size_t SendRawData(SOCKET socket, const char *data, size_t size);
 	size_t SendRawDataTo(SOCKET socket, const char* data, size_t size, sockaddr *to);
 
-	string ReceiveMessage(SOCKET socket);
-	string ReceiveMessageFrom(SOCKET socket, sockaddr *from);
+	std::string ReceiveMessage(SOCKET socket);
+	std::string ReceiveMessageFrom(SOCKET socket, sockaddr *from);
 	Package* ReceiveRawData(SOCKET socket, int size = BUFFER_SIZE, int flags = NULL);
 	Package* ReceiveRawDataFrom(SOCKET socket, sockaddr *from, int size = BUFFER_SIZE, int flags = NULL);
 public:
@@ -106,7 +104,7 @@ public:
 	virtual ~Base();
 };
 
-class ConnectionInterrupted : public exception
+class ConnectionInterrupted : public std::exception
 {
 	fpos_t position;
 public:

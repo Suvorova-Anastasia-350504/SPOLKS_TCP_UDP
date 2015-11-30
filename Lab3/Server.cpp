@@ -1,4 +1,5 @@
 #include "Server.h"
+#include <thread>
 
 Server::Server(unsigned int port)
 {
@@ -17,7 +18,7 @@ Server::Server(unsigned int port)
 	FD_SET(this->_tcp_socket, &this->serverSet);
 	FD_SET(this->_udp_socket, &this->serverSet);
 
-	cout << "Server started at port: " << this->port << endl;
+	std::cout << "Server started at port: " << this->port << std::endl;
 }
 
 sockaddr_in* Server::CreateAddressInfoForServer()
@@ -30,10 +31,10 @@ sockaddr_in* Server::CreateAddressInfoForServer()
 void Server::Bind(SOCKET socket)
 {
 	auto serverAddress = CreateAddressInfoForServer();
-	auto result = bind(socket, (sockaddr*)serverAddress, sizeof(*serverAddress));
+	int result = bind(socket, (sockaddr*)serverAddress, sizeof(*serverAddress));
 	if (result == SOCKET_ERROR)
 	{
-		throw runtime_error(EX_BIND_ERROR);
+		throw std::runtime_error(EX_BIND_ERROR);
 	}
 }
 
@@ -41,28 +42,28 @@ SOCKET Server::Accept()
 {
 	auto client = accept(this->_tcp_socket, NULL, NULL);
 	if (client == INVALID_SOCKET) {
-		throw runtime_error(EX_ACCEPT_ERROR);
+		throw std::runtime_error(EX_ACCEPT_ERROR);
 	}
 	return client;
 }
 
-fpos_t Server::GetFileSize(fstream *file)
+fpos_t Server::GetFileSize(std::fstream *file)
 {
 	fpos_t currentPosition = file->tellg();
-	file->seekg(0, ios::end);
+	file->seekg(0, std::ios::end);
 	fpos_t size = file->tellg();
 	file->seekg(currentPosition);
 	return size;
 }
 
-TCPMetadata Server::ExtractMetadata(string metadata)
+TCPMetadata Server::ExtractMetadata(std::string metadata)
 {
 	TCPMetadata metadata_st;
-	string value;
-	stringstream ss(metadata);
-	getline(ss, value, METADATA_DELIM);
+	std::string value;
+	std::stringstream ss(metadata);
+	std::getline(ss, value, METADATA_DELIM);
 	metadata_st.fileName = value;
-	getline(ss, value, PATH_DELIM);
+	std::getline(ss, value, PATH_DELIM);
 	metadata_st.progress = stoll(value);
 	return metadata_st;
 }
@@ -80,7 +81,7 @@ UDPMetadata* Server::ExtractMetadataUDP(char* rawMetadata)
 		index += UDP_NUMBER_SIZE;
 		metadata->missedPackages.push_back(GetNumber(rawMetadata, index));
 	}
-	cout << metadata->missedPackages.size() << "  " << metadata->missedPackages[0] << endl;
+	std::cout << metadata->missedPackages.size() << "  " << metadata->missedPackages[0] << std::endl;
 
 	return metadata;
 }
@@ -96,10 +97,10 @@ void Server::AddUDPClient()
 
 		if (IsACK(clientsInfo, metadata) || memcmp(rawMetadata, ACK, 3) == 0) return;
 						
-		metadata->file = new fstream();
+		metadata->file = new std::fstream();
 		try	{
 			OpenFile(metadata->file, metadata->fileName);
-		} catch (runtime_error e) {
+		} catch (std::runtime_error e) {
 			SendMessageTo(this->_udp_socket, e.what(), clientsInfo);
 			throw;
 		}
@@ -107,7 +108,7 @@ void Server::AddUDPClient()
 		if (metadata->requestFileSize)
 		{
 			auto fileSize = GetFileSize(metadata->file);
-			SendMessageTo(this->_udp_socket, to_string(fileSize), clientsInfo);
+			SendMessageTo(this->_udp_socket, std::to_string(fileSize), clientsInfo);
 		}
 		
 		metadata->file->seekg(metadata->progress);
@@ -116,12 +117,18 @@ void Server::AddUDPClient()
 		metadata->delay = 100;
 		metadata->currentDelay = 10000;
 
-		this->udpClients.push_back(metadata);				
+		//this->udpClients.push_back(metadata);				
+		//thread threadd(some);
+		//TODO : start new thread;
 	}
-	catch (runtime_error e)
+	catch (std::runtime_error e)
 	{
 		//file not found
 	}
+}
+
+void Server::some() {
+
 }
 
 void Server::SendFilePartsUDP()
@@ -145,26 +152,26 @@ void Server::SendFilePartsUDP()
 		auto packageNumber = file->tellg() / UDP_BUFFER_SIZE;
 		file->read(buffer, UDP_BUFFER_SIZE);
 		auto dataSize = file->gcount();
-		//cout << packageNumber << endl;
+		//std::cout << packageNumber << std::endl;
 
 		AddNumberToDatagram(buffer, dataSize, packageNumber);
 		SendRawDataTo(this->_udp_socket, buffer, dataSize + UDP_NUMBER_SIZE, metadata->addr);
 		
 		if (--metadata->packagesTillDrop <= 0) {
 			RemoveUDPClient(client);
-			cout << "UDP client disconnected." << endl;
+			std::cout << "UDP client disconnected." << std::endl;
 			if (client == this->udpClients.end()) break;
 		}
 		if (file->eof() ||
 			(!metadata->returnAllPackages && metadata->missedPackages.size() == 0)) {
 			RemoveUDPClient(client);
-			cout << "UDP sending finished." << endl;
+			std::cout << "UDP sending finished." << std::endl;
 			if (client == this->udpClients.end()) break;
 		}
 	}
 }
 
-void Server::RemoveUDPClient(vector<UDPMetadata*>::iterator& iter)
+void Server::RemoveUDPClient(std::vector<UDPMetadata*>::iterator& iter)
 {
 	auto clientInfo = *iter;
 	clientInfo->file->close();
@@ -196,20 +203,20 @@ bool Server::IsACK(sockaddr* client, UDPMetadata* metadata) {
 void Server::Listen()
 {
 	if (listen(this->_tcp_socket, SOMAXCONN) < 0) {
-		throw runtime_error(EX_LISTEN_ERROR);
+		throw std::runtime_error(EX_LISTEN_ERROR);
 	}
 }
 
-void Server::OpenFile(fstream *file, string fileName)
+void Server::OpenFile(std::fstream *file, std::string fileName)
 {
-	file->open(fileName, ios::binary | ios::in);
+	file->open(fileName, std::ios::binary | std::ios::in);
 	if (!file->is_open())
 	{
-		throw runtime_error(EX_FILE_NOT_FOUND);
+		throw std::runtime_error(EX_FILE_NOT_FOUND);
 	}
 }
 
-void Server::RemoveTCPClient(vector<CLIENT_INFO>::iterator& iter)
+void Server::RemoveTCPClient(std::vector<CLIENT_INFO>::iterator& iter)
 {
 	auto clientInfo = *iter;
 	FD_CLR(clientInfo->first, &this->clientsSet);
@@ -235,7 +242,7 @@ void Server::SendBlock(CLIENT_INFO clientInfo)
 	}
 	else
 	{
-		throw runtime_error(EX_SENDING_DONE);
+		throw std::runtime_error(EX_SENDING_DONE);
 	}
 }
 
@@ -248,10 +255,10 @@ void Server::SendFilePartsTCP(fd_set& clients)
 			try {
 				SendBlock(*client);
 			}
-			catch (runtime_error e) {
-				cout << e.what() << endl;
+			catch (std::runtime_error e) {
+				std::cout << e.what() << std::endl;
 				RemoveTCPClient(client);
-				cout << CLIENTS_ONLINE;
+				std::cout << CLIENTS_ONLINE;
 				if (client == this->tcpClients.end()) break;
 			}
 		}
@@ -262,18 +269,18 @@ void Server::AddTCPClient()
 {
 	auto client = Accept();
 	auto metadata = ExtractMetadata(ReceiveMessage(client));
-	auto file = new fstream();
+	auto file = new std::fstream();
 	try {
 		OpenFile(file, metadata.fileName);
 	}
-	catch (runtime_error e) {
+	catch (std::runtime_error e) {
 		SendMessage(client, e.what());
 		throw;
 	}
-	SendMessage(client, to_string(GetFileSize(file)));
+	SendMessage(client, std::to_string(GetFileSize(file)));
 	file->seekg(metadata.progress);
 
-	this->tcpClients.push_back(new pair<SOCKET, fstream*>(client, file));
+	this->tcpClients.push_back(new std::pair<SOCKET, std::fstream*>(client, file));
 	FD_SET(client, &this->clientsSet);
 }
 
@@ -286,19 +293,19 @@ void Server::Run()
 		auto clients = this->clientsSet;
 		auto servers = this->serverSet;
 		auto count = select(FD_SETSIZE, &servers, &clients, NULL, this->udpClients.size() != 0 ? nullDelay : NULL);
-		if (this->udpClients.size() != 0) SendFilePartsUDP();
+		//if (this->udpClients.size() != 0) SendFilePartsUDP();
 		if (count <= 0) continue;
 		if (FD_ISSET(this->_tcp_socket, &servers) > 0)
 		{
 			count--;
 			AddTCPClient();
-			//cout << CLIENTS_ONLINE;
+			//std::cout << CLIENTS_ONLINE;
 		}
 		if (FD_ISSET(this->_udp_socket, &servers) > 0)
 		{
 			count--;
 			AddUDPClient();
-			//cout << CLIENTS_ONLINE;
+			//std::cout << CLIENTS_ONLINE;
 		}
 		if (count > 0)
 		{
