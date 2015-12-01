@@ -1,8 +1,11 @@
 #include "Base.h"
 
+SOCKET Base::_udp_socket = INVALID_SOCKET;
+char *Base::buffer;
+
 Base::Base(unsigned int port) : port(port)
 {
-	this->buffer = new char[BUFFER_SIZE + 1];
+	buffer = new char[BUFFER_SIZE + 1];
 }
 
 void Base::Close()
@@ -28,13 +31,14 @@ void Base::CreateTCPSocket()
 	}
 }
 
-void Base::CreateUDPSocket()
+SOCKET Base::CreateUDPSocket()
 {
-	this->_udp_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (this->_udp_socket == INVALID_SOCKET)
+	auto _socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (_socket == INVALID_SOCKET)
 	{
 		throw std::runtime_error(EX_SOCKET_ERROR);
 	}
+	return _socket;
 }
 
 void Base::SetReceiveTimeout(SOCKET socket)

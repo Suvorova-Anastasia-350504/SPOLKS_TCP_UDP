@@ -1,22 +1,23 @@
 #include "Server.h"
-#include <thread>
+
+std::mutex Server::udpMutex;
 
 Server::Server(unsigned int port)
 {
 	this->port = port;
 	
-	CreateUDPSocket();
+	_udp_socket = CreateUDPSocket();
 	CreateTCPSocket();
-	Bind(this->_udp_socket);
+	Bind(_udp_socket);
 	Bind(this->_tcp_socket);
 	SetSendTimeout(this->_tcp_socket);
-	SetReceiveTimeout(this->_udp_socket, GetTimeout(100));
+	SetReceiveTimeout(_udp_socket, GetTimeout(100));
 	Listen();
 
 	FD_ZERO(&this->clientsSet);
 	FD_ZERO(&this->serverSet);
 	FD_SET(this->_tcp_socket, &this->serverSet);
-	FD_SET(this->_udp_socket, &this->serverSet);
+	FD_SET(_udp_socket, &this->serverSet);
 
 	std::cout << "Server started at port: " << this->port << std::endl;
 }
@@ -90,12 +91,16 @@ void Server::AddUDPClient()
 {
 	try
 	{		
+		//udpMutex.lock();
 		auto clientsInfo = new sockaddr();
-		auto rawMetadata = ReceiveRawDataFrom(this->_udp_socket, clientsInfo)->data;
-		
+		char *rawMetadata;
+		{
+			std::unique_lock<std::mutex> lock(udpMutex);
+			rawMetadata = ReceiveRawDataFrom(this->_udp_socket, clientsInfo)->data;
+		}
 		auto metadata = ExtractMetadataUDP(rawMetadata);
-
-		if (IsACK(clientsInfo, metadata) || memcmp(rawMetadata, ACK, 3) == 0) return;
+		
+		if (IsACK(clientsInfo, metadata)/* || memcmp(rawMetadata, ACK, 3) == 0*/) return;
 						
 		metadata->file = new std::fstream();
 		try	{
@@ -110,16 +115,18 @@ void Server::AddUDPClient()
 			auto fileSize = GetFileSize(metadata->file);
 			SendMessageTo(this->_udp_socket, std::to_string(fileSize), clientsInfo);
 		}
-		
+		//udpMutex.unlock();
 		metadata->file->seekg(metadata->progress);
 		metadata->packagesTillDrop = PACKAGES_TILL_DROP;
 		metadata->addr = clientsInfo;
 		metadata->delay = 100;
-		metadata->currentDelay = 10000;
+		metadata->currentDelay = 1000;
 
-		//this->udpClients.push_back(metadata);				
-		//thread threadd(some);
-		//TODO : start new thread;
+		auto pair = new std::pair<std::mutex*, UDPMetadata*>(new std::mutex(), metadata);
+		this->udpClients.push_back(pair);
+		auto new_thread = new std::thread(SendFile, pair);
+		this->threads.push_back(new_thread);
+		std::cout << "new thread created" << std::endl;
 	}
 	catch (std::runtime_error e)
 	{
@@ -127,67 +134,123 @@ void Server::AddUDPClient()
 	}
 }
 
-void Server::some() {
+void Server::SendFile(std::pair<std::mutex*, UDPMetadata*>* _pair) {
+	//auto mutex = &_pair->first;
+	auto local_buffer = new char[UDP_BUFFER_SIZE];
+	auto metadata = _pair->second;
+	auto file = metadata->file;
+	while (!metadata->file->eof() || !metadata->returnAllPackages && metadata->missedPackages.size() > 0) {
+		{
+			std::unique_lock<std::mutex> lock(*_pair->first);
 
+			if (--metadata->currentDelay > 0) continue;
+			metadata->currentDelay = metadata->delay;
+
+			if (--metadata->packagesTillDrop <= 0) {
+				//RemoveUDPClient(client);
+				std::cout << "UDP client disconnected." << std::endl;
+				break;
+				//if (client == udpClients.end()) break;
+			}
+			
+			/*if (metadata->missedPackages.size() > 0 )
+				std::cout << metadata->missedPackages.size() << std::endl;*/
+			if (metadata->missedPackages.size() > 0) {
+				file->seekg(metadata->missedPackages[0] * UDP_BUFFER_SIZE);
+				metadata->missedPackages.erase(metadata->missedPackages.begin());
+			}
+			else {
+				file->seekg(metadata->progress);
+				file->seekg(metadata->progress);
+				metadata->progress += UDP_BUFFER_SIZE;
+			}
+		}
+
+		auto packageNumber = file->tellg() / UDP_BUFFER_SIZE;
+		std::cout << packageNumber << std::endl;
+		file->read(local_buffer, UDP_BUFFER_SIZE);
+		auto dataSize = file->gcount();
+
+		AddNumberToDatagram(local_buffer, dataSize, packageNumber);
+
+		{
+			std::unique_lock<std::mutex> lock(udpMutex);
+			SendRawDataTo(_udp_socket, local_buffer, dataSize + UDP_NUMBER_SIZE, metadata->addr);
+		}
+	}
+	std::cout << "UDP sending finished." << std::endl;
 }
 
 void Server::SendFilePartsUDP()
 {
-	for (auto client = this->udpClients.begin(); client != this->udpClients.end(); ++client)
-	{
-		auto metadata = *client;
-		if (--metadata->currentDelay > 0) continue;
-		
-		metadata->currentDelay = metadata->delay;
-		auto file = metadata->file;
-		if (metadata->missedPackages.size() > 0) {
-			file->seekg(metadata->missedPackages[0] * UDP_BUFFER_SIZE);
-			metadata->missedPackages.erase(metadata->missedPackages.begin());
-		}
-		else {
-			file->seekg(metadata->progress);
-			metadata->progress += UDP_BUFFER_SIZE;
-		}
-		
-		auto packageNumber = file->tellg() / UDP_BUFFER_SIZE;
-		file->read(buffer, UDP_BUFFER_SIZE);
-		auto dataSize = file->gcount();
-		//std::cout << packageNumber << std::endl;
+	//for (auto client = this->udpClients.begin(); client != this->udpClients.end(); ++client)
+	//{
+	//	auto metadata = *client;
+	//	if (--metadata->currentDelay > 0) continue;
+	//	
+	//	metadata->currentDelay = metadata->delay;
+	//	auto file = metadata->file;
+	//	if (metadata->missedPackages.size() > 0) {
+	//		file->seekg(metadata->missedPackages[0] * UDP_BUFFER_SIZE);
+	//		metadata->missedPackages.erase(metadata->missedPackages.begin());
+	//	}
+	//	else {
+	//		file->seekg(metadata->progress);
+	//		metadata->progress += UDP_BUFFER_SIZE;
+	//	}
+	//	
+	//	auto packageNumber = file->tellg() / UDP_BUFFER_SIZE;
+	//	file->read(buffer, UDP_BUFFER_SIZE);
+	//	auto dataSize = file->gcount();
+	//	//std::cout << packageNumber << std::endl;
 
-		AddNumberToDatagram(buffer, dataSize, packageNumber);
-		SendRawDataTo(this->_udp_socket, buffer, dataSize + UDP_NUMBER_SIZE, metadata->addr);
-		
-		if (--metadata->packagesTillDrop <= 0) {
-			RemoveUDPClient(client);
-			std::cout << "UDP client disconnected." << std::endl;
-			if (client == this->udpClients.end()) break;
-		}
-		if (file->eof() ||
-			(!metadata->returnAllPackages && metadata->missedPackages.size() == 0)) {
-			RemoveUDPClient(client);
-			std::cout << "UDP sending finished." << std::endl;
-			if (client == this->udpClients.end()) break;
-		}
-	}
+	//	AddNumberToDatagram(buffer, dataSize, packageNumber);
+	//	//SendRawDataTo(_udp_socket, buffer, dataSize + UDP_NUMBER_SIZE, metadata->addr);
+	//	
+	//	if (--metadata->packagesTillDrop <= 0) {
+	//		RemoveUDPClient(client);
+	//		std::cout << "UDP client disconnected." << std::endl;
+	//		if (client == this->udpClients.end()) break;
+	//	}
+	//	if (file->eof() ||
+	//		(!metadata->returnAllPackages && metadata->missedPackages.size() == 0)) {
+	//		RemoveUDPClient(client);
+	//		std::cout << "UDP sending finished." << std::endl;
+	//		if (client == this->udpClients.end()) break;
+	//	}
+	//}
 }
 
 void Server::RemoveUDPClient(std::vector<UDPMetadata*>::iterator& iter)
 {
-	auto clientInfo = *iter;
+	/*auto clientInfo = *iter;
 	clientInfo->file->close();
 	delete clientInfo->file;
 	delete clientInfo->addr;
-	iter = this->udpClients.erase(iter);
+	iter = this->udpClients.erase(iter);*/
 }
 
 bool Server::IsACK(sockaddr* client, UDPMetadata* metadata) {
 
-	auto _client = find_if(this->udpClients.begin(), this->udpClients.end(), [&](UDPMetadata* clientMetadata)
+	std::cout << "ACK" << std::endl;
+	auto _client = find_if(this->udpClients.begin(), this->udpClients.end(),
+		[&](std::pair<std::mutex*, UDPMetadata*> *pair)
 	{
-		return memcmp(clientMetadata->addr->sa_data, client->sa_data, 14) == 0;
+		return memcmp(pair->second->addr->sa_data, client->sa_data, 14) == 0;
 	});
 	if (_client != this->udpClients.end()) {	//ACK
-		auto clientMeta = (*_client);
+
+		//std::cout << "1" << std::endl;
+		//(*_client)->first->lock();
+		std::unique_lock<std::mutex> lock(*(*_client)->first);
+		auto clientMeta = (*_client)->second;
+		if (clientMeta->file->eof() && clientMeta->missedPackages.size() == 0 ||
+			clientMeta->packagesTillDrop <= 0) 
+		{
+			this->udpClients.erase(_client);
+			return false;
+		}
+		//std::cout << "2" << std::endl;
 		clientMeta->packagesTillDrop = PACKAGES_TILL_DROP;
 		clientMeta->missedPackages = metadata->missedPackages;
 		clientMeta->delay = 100;
@@ -195,6 +258,7 @@ bool Server::IsACK(sockaddr* client, UDPMetadata* metadata) {
 
 		clientMeta->lastProgress = clientMeta->progress;
 		clientMeta->currentDelay = clientMeta->delay;
+
 		return true;
 	}
 	return false;
@@ -292,7 +356,7 @@ void Server::Run()
 	{
 		auto clients = this->clientsSet;
 		auto servers = this->serverSet;
-		auto count = select(FD_SETSIZE, &servers, &clients, NULL, this->udpClients.size() != 0 ? nullDelay : NULL);
+		auto count = select(FD_SETSIZE, &servers, &clients, NULL, /*this->udpClients.size() != 0 ? nullDelay :*/ NULL);
 		//if (this->udpClients.size() != 0) SendFilePartsUDP();
 		if (count <= 0) continue;
 		if (FD_ISSET(this->_tcp_socket, &servers) > 0)
@@ -301,7 +365,7 @@ void Server::Run()
 			AddTCPClient();
 			//std::cout << CLIENTS_ONLINE;
 		}
-		if (FD_ISSET(this->_udp_socket, &servers) > 0)
+		if (FD_ISSET(_udp_socket, &servers) > 0)
 		{
 			count--;
 			AddUDPClient();

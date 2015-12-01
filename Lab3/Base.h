@@ -7,6 +7,8 @@
 #include <sstream>
 #include <fstream>
 #include <vector>
+#include <thread>
+#include <mutex>
 
 #ifdef _WIN32
 #include <WinSock2.h>
@@ -51,7 +53,7 @@
 #define UDP_NUMBER_SIZE 4
 #define UDP_BUFFER_SIZE (BUFFER_SIZE - UDP_NUMBER_SIZE)
 #define PACKAGE_COUNT 1000
-#define PACKAGES_TILL_DROP 5000
+#define PACKAGES_TILL_DROP 50000
 #define REQUEST_ALL_PACKAGES 0
 #define ACK "ACK"
 
@@ -68,15 +70,15 @@ class Base
 	Package* PeekRawData(SOCKET socket);
 protected:
 	
-	char *buffer;
+	static char *buffer;
 	unsigned int port;
 	SOCKET _tcp_socket;
-	SOCKET _udp_socket;
+	static SOCKET _udp_socket;
 
 	void virtual OpenFile(std::fstream *file, std::string fileName) = 0;
 
 	void CreateTCPSocket();
-	void CreateUDPSocket();
+	SOCKET CreateUDPSocket();
 
 	void SetReceiveTimeout(SOCKET socket);
 	void SetReceiveTimeout(SOCKET socket, TIME_STRUCT timeout);
@@ -85,14 +87,14 @@ protected:
 	TIME_STRUCT GetTimeout(unsigned time = TIMEOUT);
 
 	fpos_t GetNumber(char* data, fpos_t startPosition);
-	void AddNumberToDatagram(char *buffer, fpos_t startPosition, fpos_t number);
+	static void AddNumberToDatagram(char *buffer, fpos_t startPosition, fpos_t number);
 
 	sockaddr_in* CreateAddressInfo(std::string address, unsigned int port);
 
 	void SendMessageTo(SOCKET socket, std::string message, sockaddr *to);
 	void SendMessage(SOCKET socket, std::string message);
 	size_t SendRawData(SOCKET socket, const char *data, size_t size);
-	size_t SendRawDataTo(SOCKET socket, const char* data, size_t size, sockaddr *to);
+	static size_t SendRawDataTo(SOCKET socket, const char* data, size_t size, sockaddr *to);
 
 	std::string ReceiveMessage(SOCKET socket);
 	std::string ReceiveMessageFrom(SOCKET socket, sockaddr *from);

@@ -3,7 +3,7 @@
 UDPClient::UDPClient(string address, unsigned int port) : Client(address, port)
 {
 	this->serverAddressInfo = (sockaddr*)CreateAddressInfoForClient();
-	CreateUDPSocket();
+	_udp_socket = CreateUDPSocket();
 	SetReceiveTimeout(this->_udp_socket, GetTimeout(UDP_RECV_TIMEOUT));
 	for (auto i = 0; i < PACKAGE_COUNT; i++)
 	{
@@ -15,19 +15,20 @@ UDPClient::UDPClient(string address, unsigned int port) : Client(address, port)
 
 fpos_t UDPClient::ConnectToServer()
 {
-	auto connectionInfo = new char[BUFFER_SIZE];
-	auto infoSize = CreateConnectionInfo(connectionInfo, BUFFER_SIZE);
+	///auto connectionInfo = new char[BUFFER_SIZE];
+	auto infoSize = CreateConnectionInfo(buffer, BUFFER_SIZE);
 	while(true)
 	{
 		try
 		{
-			SendRawDataTo(this->_udp_socket, connectionInfo, infoSize, serverAddressInfo);
+			SendRawDataTo(this->_udp_socket, buffer, infoSize, serverAddressInfo);
 			auto fileSize = ReceiveFileSize();
 			return fileSize;
 		} catch(ServerError e) {
 			throw;
 		}catch(runtime_error e)	{
 			cout << e.what() << endl;
+			Sleep(1000);
 		}
 	}
 }
@@ -113,7 +114,7 @@ void UDPClient::ProcessBatches(fstream* file, fpos_t fileSize)
 			filePos += UDP_BUFFER_SIZE;
 			
 			RemoveFromMissingPackages(packageNumber);
-			//log << missingPackages.size() << endl;
+			//cout << missingPackages.size() << endl;
 			if (++packageCount >= PACKAGE_COUNT)
 			{
 				break;
@@ -121,10 +122,10 @@ void UDPClient::ProcessBatches(fstream* file, fpos_t fileSize)
 		}
 			//SendMessageTo(this->_udp_socket, ACK, this->serverAddressInfo);
 		if (missingPackages.size() > 0) {
-			//SendMissingPackages(packageNumber);
+			SendMissingPackages(packageNumber);
 			//SEND ASK
 			//cout << "SEND ASK" << endl;
-			SendMissingPackages();
+			//SendMissingPackages();
 			//log.close();
 			//throw 1;
 		} else {
@@ -209,9 +210,9 @@ void UDPClient::InitMissingPackages()
 
 void UDPClient::SendMissingPackages(fpos_t lastReceivedPackage)
 {
-	auto *message = new char[UDP_BUFFER_SIZE];
-	auto dataSize = CreateMissingPackagesInfo(message, UDP_BUFFER_SIZE, lastReceivedPackage);
-	SendRawDataTo(this->_udp_socket, message, dataSize, serverAddressInfo);
+	//auto *message = new char[UDP_BUFFER_SIZE];
+	auto dataSize = CreateMissingPackagesInfo(buffer, UDP_BUFFER_SIZE, lastReceivedPackage);
+	SendRawDataTo(this->_udp_socket, buffer, dataSize, serverAddressInfo);
 }
 fpos_t UDPClient::CreateMissingPackagesInfo(char* buffer, fpos_t bufferSize, fpos_t lastReceivedPackage, bool requestAllPackages)
 {

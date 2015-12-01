@@ -25,7 +25,10 @@ struct UDPMetadata {
 class Server : public Base
 {
 	std::vector<CLIENT_INFO> tcpClients;
-	std::vector<UDPMetadata*> udpClients;
+	std::vector<std::pair<std::mutex*, UDPMetadata*>*> udpClients;
+	std::vector<std::thread*> threads;
+	static std::mutex udpMutex;	//mb does not need
+
 	fd_set serverSet;
 	fd_set clientsSet;
 		
@@ -37,12 +40,12 @@ class Server : public Base
 	//UDP
 	void AddUDPClient();
 	void SendFilePartsUDP();
+	static void SendFile(std::pair<std::mutex*, UDPMetadata*>* _pair);
 	
 	void RemoveUDPClient(std::vector<UDPMetadata*>::iterator& iter);
 	bool IsACK(sockaddr *client, UDPMetadata* rawMetadata);
 	UDPMetadata* ExtractMetadataUDP(char* rawMetadata);
 
-	static void some();
 	//TCP
 	TCPMetadata ExtractMetadata(std::string metadata);
 	SOCKET Accept();
