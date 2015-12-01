@@ -121,10 +121,10 @@ void UDPClient::ProcessBatches(fstream* file, fpos_t fileSize)
 		}
 			//SendMessageTo(this->_udp_socket, ACK, this->serverAddressInfo);
 		if (missingPackages.size() > 0) {
-			//SendMissingPackages(packageNumber);
+			SendMissingPackages(packageNumber);
 			//SEND ASK
 			//cout << "SEND ASK" << endl;
-			SendMissingPackages();
+			//SendMissingPackages();
 			//log.close();
 			//throw 1;
 		} else {
