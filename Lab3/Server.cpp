@@ -101,7 +101,7 @@ void Server::AddUDPClient()
 		auto metadata = ExtractMetadataUDP(rawMetadata);
 		
 		if (IsACK(clientsInfo, metadata)/* || memcmp(rawMetadata, ACK, 3) == 0*/) return;
-						
+		std::cout << "not ACK" << std::endl;
 		metadata->file = new std::fstream();
 		try	{
 			OpenFile(metadata->file, metadata->fileName);
@@ -139,7 +139,7 @@ void Server::SendFile(std::pair<std::mutex*, UDPMetadata*>* _pair) {
 	auto local_buffer = new char[UDP_BUFFER_SIZE];
 	auto metadata = _pair->second;
 	auto file = metadata->file;
-	while (!metadata->file->eof() || !metadata->returnAllPackages && metadata->missedPackages.size() > 0) {
+	while (!metadata->file->eof() && metadata->returnAllPackages || metadata->missedPackages.size() > 0) {
 		{
 			std::unique_lock<std::mutex> lock(*_pair->first);
 
@@ -244,7 +244,8 @@ bool Server::IsACK(sockaddr* client, UDPMetadata* metadata) {
 		//(*_client)->first->lock();
 		std::unique_lock<std::mutex> lock(*(*_client)->first);
 		auto clientMeta = (*_client)->second;
-		if (clientMeta->file->eof() && clientMeta->missedPackages.size() == 0 ||
+		if (clientMeta->file->eof() && clientMeta->returnAllPackages || 
+			!clientMeta->returnAllPackages && clientMeta->missedPackages.size() == 0 ||
 			clientMeta->packagesTillDrop <= 0) 
 		{
 			this->udpClients.erase(_client);
