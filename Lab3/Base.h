@@ -93,7 +93,7 @@ protected:
 
 	void SendMessageTo(SOCKET socket, std::string message, sockaddr *to);
 	void SendMessage(SOCKET socket, std::string message);
-	size_t SendRawData(SOCKET socket, const char *data, size_t size);
+	static size_t SendRawData(SOCKET socket, const char *data, size_t size);
 	static size_t SendRawDataTo(SOCKET socket, const char* data, size_t size, sockaddr *to);
 
 	std::string ReceiveMessage(SOCKET socket);

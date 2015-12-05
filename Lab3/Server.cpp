@@ -1,6 +1,7 @@
 #include "Server.h"
 
 std::mutex Server::udpMutex;
+fd_set Server::clientsSet;
 
 Server::Server(unsigned int port)
 {
@@ -139,7 +140,8 @@ void Server::SendFile(std::pair<std::mutex*, UDPMetadata*>* _pair) {
 	auto local_buffer = new char[UDP_BUFFER_SIZE];
 	auto metadata = _pair->second;
 	auto file = metadata->file;
-	while (!metadata->file->eof() && metadata->returnAllPackages || metadata->missedPackages.size() > 0) {
+	while (!metadata->file->eof() && metadata->returnAllPackages || metadata->missedPackages.size() > 0) 
+	{
 		{
 			std::unique_lock<std::mutex> lock(*_pair->first);
 
@@ -160,7 +162,7 @@ void Server::SendFile(std::pair<std::mutex*, UDPMetadata*>* _pair) {
 				metadata->missedPackages.erase(metadata->missedPackages.begin());
 			}
 			else {
-				file->seekg(metadata->progress);
+				//file->seekg(metadata->progress);
 				file->seekg(metadata->progress);
 				metadata->progress += UDP_BUFFER_SIZE;
 			}
@@ -254,7 +256,7 @@ bool Server::IsACK(sockaddr* client, UDPMetadata* metadata) {
 		//std::cout << "2" << std::endl;
 		clientMeta->packagesTillDrop = PACKAGES_TILL_DROP;
 		clientMeta->missedPackages = metadata->missedPackages;
-		clientMeta->delay = 100;
+		clientMeta->delay = 1;
 		//clientMeta->delay = (clientMeta->progress - clientMeta->lastProgress) / UDP_BUFFER_SIZE / (double)PACKAGE_COUNT;
 
 		clientMeta->lastProgress = clientMeta->progress;
@@ -293,22 +295,27 @@ void Server::RemoveTCPClient(std::vector<CLIENT_INFO>::iterator& iter)
 
 void Server::SendBlock(CLIENT_INFO clientInfo)
 {
+	char buffer[BUFFER_SIZE];
 	auto file = clientInfo->second;
-	if (file)
-	{
-		file->read(buffer, BUFFER_SIZE);
-		size_t read = file->gcount();
-		size_t realySent = SendRawData(clientInfo->first, buffer, read);
-		if (realySent != read)
+	try {
+		while (file)
 		{
-			fpos_t pos = file->tellg();
-			file->seekg(pos - (read - realySent));
+			file->read(buffer, BUFFER_SIZE);
+			size_t read = file->gcount();
+			size_t realySent = SendRawData(clientInfo->first, buffer, read);
+			if (realySent != read)
+			{
+				fpos_t pos = file->tellg();
+				file->seekg(pos - (read - realySent));
+			}
 		}
+	} catch(std::runtime_error e) {
+		
 	}
-	else
-	{
-		throw std::runtime_error(EX_SENDING_DONE);
-	}
+	FD_CLR(clientInfo->first, &clientsSet);
+	file->close();
+	shutdown(clientInfo->first, SD_BOTH);
+	closesocket(clientInfo->first);
 }
 
 void Server::SendFilePartsTCP(fd_set& clients)
@@ -344,9 +351,10 @@ void Server::AddTCPClient()
 	}
 	SendMessage(client, std::to_string(GetFileSize(file)));
 	file->seekg(metadata.progress);
-
-	this->tcpClients.push_back(new std::pair<SOCKET, std::fstream*>(client, file));
 	FD_SET(client, &this->clientsSet);
+	this->tcpClients.push_back(new std::pair<SOCKET, std::fstream*>(client, file));
+	std::thread thr(SendBlock, new std::pair<SOCKET, std::fstream*>(client, file));
+	thr.detach();
 }
 
 void Server::Run()
@@ -355,9 +363,9 @@ void Server::Run()
 	//nullDelay->tv_usec = 1;
 	while (true)
 	{
-		auto clients = this->clientsSet;
+		//auto clients = this->clientsSet;
 		auto servers = this->serverSet;
-		auto count = select(FD_SETSIZE, &servers, &clients, NULL, /*this->udpClients.size() != 0 ? nullDelay :*/ NULL);
+		auto count = select(FD_SETSIZE, &servers, NULL, NULL, /*this->udpClients.size() != 0 ? nullDelay :*/ NULL);
 		//if (this->udpClients.size() != 0) SendFilePartsUDP();
 		if (count <= 0) continue;
 		if (FD_ISSET(this->_tcp_socket, &servers) > 0)
@@ -372,9 +380,9 @@ void Server::Run()
 			AddUDPClient();
 			//std::cout << CLIENTS_ONLINE;
 		}
-		if (count > 0)
+		/*if (count > 0)
 		{
 			SendFilePartsTCP(clients);
-		}
+		}*/
 	}
 }

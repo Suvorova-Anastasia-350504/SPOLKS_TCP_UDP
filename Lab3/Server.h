@@ -30,7 +30,7 @@ class Server : public Base
 	static std::mutex udpMutex;	//mb does not need
 
 	fd_set serverSet;
-	fd_set clientsSet;
+	static fd_set clientsSet;
 		
 	void virtual OpenFile(std::fstream *file, std::string fileName) override;
 	void Bind(SOCKET socket);	
@@ -53,7 +53,7 @@ class Server : public Base
 	void SendFilePartsTCP(fd_set &clients);
 	void AddTCPClient();
 	void RemoveTCPClient(std::vector<CLIENT_INFO>::iterator& iter);
-	void SendBlock(CLIENT_INFO clientInfo);
+	static void SendBlock(CLIENT_INFO clientInfo);
 public:
 	Server(unsigned int port = DEFAULT_PORT);
 	void Run();
