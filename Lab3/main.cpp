@@ -60,20 +60,36 @@ void startAsClient()
 	delete client;
 }
 
-int main(void)
-{
-	InitializeNetwork();
-
+void startAsMain() {
 	string mode = "", type;
 	cout << "'s' for server mode" << endl;
 	cin >> mode;
-	
+
 	switch (mode[0]) {
-		case 's':
-			startAsServer();
-			break;
-		default:
-			startAsClient();
+	case 's':
+		startAsServer();
+		break;
+	default:
+		startAsClient();
+	}
+}
+
+void startAsChild(char **argv) {
+	if (std::string(argv[1]) == UDP) {
+		//TODO : receive UDP file
+	} else {
+		//TODO recieve TCP file
+	}
+}
+
+int main(int argc, char **argv)
+{
+	InitializeNetwork();	
+	
+	if (std::string(argv[0]) == CHILD) {
+		startAsChild(argv);
+	} else {
+		startAsMain();
 	}
 
 	ReleaseNetwork();

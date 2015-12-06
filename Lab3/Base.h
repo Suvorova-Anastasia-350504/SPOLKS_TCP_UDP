@@ -55,7 +55,9 @@
 #define PACKAGE_COUNT 1000
 #define PACKAGES_TILL_DROP 50000
 #define REQUEST_ALL_PACKAGES 0
-#define ACK "ACK"
+#define CHILD "CHILD"
+#define UDP "UDP"
+#define TCP "TCP"
 
 struct Package {
 	char *data;
