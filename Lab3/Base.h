@@ -58,6 +58,8 @@
 #define CHILD "CHILD"
 #define UDP "UDP"
 #define TCP "TCP"
+#define SHARED_MEMORY_TCP "SHARED_MEMORY_TCP"
+#define SHARED_MEMORY_UDP "SHARED_MEMORY_UDP"
 
 struct Package {
 	char *data;

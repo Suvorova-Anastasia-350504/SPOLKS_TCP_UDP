@@ -26,9 +26,21 @@ struct UDPMetadata {
 	fpos_t lastProgress;
 };
 
+struct SharedMemoryDescriptor
+{
+	HANDLE handle;
+	std::string name;
+	void* memory;
+	size_t size;
+};
+
+
 class Server : public Base
 {
 	std::string executablePath;
+	SharedMemoryDescriptor tcpSharedMemory;
+	SharedMemoryDescriptor udpSharedMemory;
+
 
 	std::vector<CLIENT_INFO> tcpClients;
 	std::vector<std::pair<std::mutex*, UDPMetadata*>*> udpClients;
@@ -42,7 +54,11 @@ class Server : public Base
 	void Bind(SOCKET socket);	
 	fpos_t GetFileSize(std::fstream *file);
 	sockaddr_in* CreateAddressInfoForServer();
+
 	void StartNewProcess(SOCKET &socket, std::string processType);
+	SharedMemoryDescriptor CreateSharedMemory(size_t size, const std::string& name);
+	SharedMemoryDescriptor OpenSharedMemory(size_t size, const std::string& name);
+	void RemoveSharedMemory(SharedMemoryDescriptor& desc);
 
 	//UDP
 	void AddUDPClient();
@@ -64,5 +80,6 @@ class Server : public Base
 public:
 	Server(std::string executablePath, unsigned int port = DEFAULT_PORT);
 	void Run();
+	~Server();
 };
 
