@@ -55,7 +55,7 @@ class Server : public Base
 	fpos_t GetFileSize(std::fstream *file);
 	sockaddr_in* CreateAddressInfoForServer();
 
-	void StartNewProcess(SOCKET &socket, std::string processType);
+	void StartNewProcess(std::string processType);
 	SharedMemoryDescriptor CreateSharedMemory(size_t size, const std::string& name);
 	SharedMemoryDescriptor OpenSharedMemory(size_t size, const std::string& name);
 	void RemoveSharedMemory(SharedMemoryDescriptor& desc);

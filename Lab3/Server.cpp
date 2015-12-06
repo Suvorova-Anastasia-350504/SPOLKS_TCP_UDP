@@ -363,13 +363,16 @@ void Server::AddTCPClient()
 	thr.detach();
 }
 
-void Server::StartNewProcess(SOCKET& socket, std::string processType)
+void Server::StartNewProcess(std::string processType)
 {
-	auto commandLine = processType;
+	auto commandLine = std::string(" ") + CHILD + std::string(" ") + processType;
 	PROCESS_INFORMATION process;
 #ifdef _WIN32
-	CreateProcessA(executablePath.c_str(), LPSTR(commandLine.c_str()), nullptr,
-		nullptr, TRUE, 0, nullptr, nullptr, /*&process.si*/ NULL, &process);
+	STARTUPINFOA si;
+	memset(&si, 0, sizeof(si));
+	si.cb = sizeof(si);
+	CreateProcess(executablePath.c_str(), LPSTR(commandLine.c_str()), nullptr,
+		nullptr, TRUE, 0, nullptr, nullptr, &si, &process);
 #else
 	posix_spawn(&process, executablePath.c_str(), nullptr, nullptr, commandLine.c_str(), environ);
 #endif
@@ -419,7 +422,6 @@ void Server::RemoveSharedMemory(SharedMemoryDescriptor& desc)
 #endif
 }
 
-
 void Server::Run()
 {
 	auto nullDelay = new timeval();
@@ -434,13 +436,18 @@ void Server::Run()
 		if (FD_ISSET(this->_tcp_socket, &servers) > 0)
 		{
 			count--;
-			AddTCPClient();
+			StartNewProcess(TCP);
+			Sleep(100000);
+			//AddTCPClient();
 			//std::cout << CLIENTS_ONLINE;
 		}
 		if (FD_ISSET(_udp_socket, &servers) > 0)
 		{
 			count--;
-			AddUDPClient();
+			StartNewProcess(UDP);
+			Sleep(100000);
+			//StartNewProcess(_udp_socket, UDP);
+			//AddUDPClient();
 			//std::cout << CLIENTS_ONLINE;
 		}
 		/*if (count > 0)

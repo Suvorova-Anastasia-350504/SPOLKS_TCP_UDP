@@ -75,9 +75,10 @@ void startAsMain(char** argv) {
 }
 
 void startAsChild(char **argv) {
-	if (std::string(argv[1]) == UDP) {
-		//TODO : receive UDP file
+	if (std::string(argv[2]) == UDP) {
+		cout << UDP << endl;
 	} else {
+		cout << TCP << endl;
 		//TODO recieve TCP file
 	}
 }
@@ -86,7 +87,8 @@ int main(int argc, char **argv)
 {
 	InitializeNetwork();	
 	
-	if (std::string(argv[0]) == CHILD) {
+	if (argc > 1 && std::string(argv[1]) == CHILD) {
+		cout << "CHILD !" << endl;
 		startAsChild(argv);
 	} else {
 		startAsMain(argv);
