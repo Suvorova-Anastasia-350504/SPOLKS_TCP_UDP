@@ -1,7 +1,7 @@
 #include "Server.h"
 
-std::mutex Server::udpMutex;
-fd_set Server::clientsSet;
+Server::Server() {
+}
 
 Server::Server(std::string executablePath, unsigned int port)
 {
@@ -16,14 +16,13 @@ Server::Server(std::string executablePath, unsigned int port)
 	SetReceiveTimeout(_udp_socket, GetTimeout(100));
 	Listen();
 
-	FD_ZERO(&this->clientsSet);
 	FD_ZERO(&this->serverSet);
 	FD_SET(this->_tcp_socket, &this->serverSet);
 	FD_SET(_udp_socket, &this->serverSet);
 
-	tcpSharedMemory = CreateSharedMemory(sizeof(SOCKET), SHARED_MEMORY_TCP);
+	tcpSharedMemory = SharedMemoryManager::CreateSharedMemory(sizeof(SOCKET), SHARED_MEMORY_NAME_TCP);
 	memcpy(tcpSharedMemory.memory, &_tcp_socket, sizeof(SOCKET));
-	udpSharedMemory = CreateSharedMemory(sizeof(SOCKET), SHARED_MEMORY_UDP);
+	udpSharedMemory = SharedMemoryManager::CreateSharedMemory(sizeof(SOCKET), SHARED_MEMORY_NAME_UDP);
 	memcpy(udpSharedMemory.memory, &_udp_socket, sizeof(SOCKET));
 
 	std::cout << "Server started at port: " << this->port << std::endl;
@@ -46,15 +45,6 @@ void Server::Bind(SOCKET socket)
 	}
 }
 
-SOCKET Server::Accept()
-{
-	auto client = accept(this->_tcp_socket, NULL, NULL);
-	if (client == INVALID_SOCKET) {
-		throw std::runtime_error(EX_ACCEPT_ERROR);
-	}
-	return client;
-}
-
 fpos_t Server::GetFileSize(std::fstream *file)
 {
 	fpos_t currentPosition = file->tellg();
@@ -62,18 +52,6 @@ fpos_t Server::GetFileSize(std::fstream *file)
 	fpos_t size = file->tellg();
 	file->seekg(currentPosition);
 	return size;
-}
-
-TCPMetadata Server::ExtractMetadata(std::string metadata)
-{
-	TCPMetadata metadata_st;
-	std::string value;
-	std::stringstream ss(metadata);
-	std::getline(ss, value, METADATA_DELIM);
-	metadata_st.fileName = value;
-	std::getline(ss, value, PATH_DELIM);
-	metadata_st.progress = stoll(value);
-	return metadata_st;
 }
 
 UDPMetadata* Server::ExtractMetadataUDP(char* rawMetadata)
@@ -102,7 +80,7 @@ void Server::AddUDPClient()
 		auto clientsInfo = new sockaddr();
 		char *rawMetadata;
 		{
-			std::unique_lock<std::mutex> lock(udpMutex);
+			//std::unique_lock<std::mutex> lock(udpMutex);
 			rawMetadata = ReceiveRawDataFrom(this->_udp_socket, clientsInfo)->data;
 		}
 		auto metadata = ExtractMetadataUDP(rawMetadata);
@@ -131,8 +109,8 @@ void Server::AddUDPClient()
 
 		auto pair = new std::pair<std::mutex*, UDPMetadata*>(new std::mutex(), metadata);
 		this->udpClients.push_back(pair);
-		auto new_thread = new std::thread(SendFile, pair);
-		this->threads.push_back(new_thread);
+		auto new_thread = new std::thread(SendFileViaUDP, pair);
+		//this->threads.push_back(new_thread);
 		std::cout << "new thread created" << std::endl;
 	}
 	catch (std::runtime_error e)
@@ -141,7 +119,7 @@ void Server::AddUDPClient()
 	}
 }
 
-void Server::SendFile(std::pair<std::mutex*, UDPMetadata*>* _pair) {
+void Server::SendFileViaUDP(std::pair<std::mutex*, UDPMetadata*>* _pair) {
 	//auto mutex = &_pair->first;
 	auto local_buffer = new char[UDP_BUFFER_SIZE];
 	auto metadata = _pair->second;
@@ -182,60 +160,11 @@ void Server::SendFile(std::pair<std::mutex*, UDPMetadata*>* _pair) {
 		AddNumberToDatagram(local_buffer, dataSize, packageNumber);
 
 		{
-			std::unique_lock<std::mutex> lock(udpMutex);
+			//std::unique_lock<std::mutex> lock(udpMutex);
 			SendRawDataTo(_udp_socket, local_buffer, dataSize + UDP_NUMBER_SIZE, metadata->addr);
 		}
 	}
 	std::cout << "UDP sending finished." << std::endl;
-}
-
-void Server::SendFilePartsUDP()
-{
-	//for (auto client = this->udpClients.begin(); client != this->udpClients.end(); ++client)
-	//{
-	//	auto metadata = *client;
-	//	if (--metadata->currentDelay > 0) continue;
-	//	
-	//	metadata->currentDelay = metadata->delay;
-	//	auto file = metadata->file;
-	//	if (metadata->missedPackages.size() > 0) {
-	//		file->seekg(metadata->missedPackages[0] * UDP_BUFFER_SIZE);
-	//		metadata->missedPackages.erase(metadata->missedPackages.begin());
-	//	}
-	//	else {
-	//		file->seekg(metadata->progress);
-	//		metadata->progress += UDP_BUFFER_SIZE;
-	//	}
-	//	
-	//	auto packageNumber = file->tellg() / UDP_BUFFER_SIZE;
-	//	file->read(buffer, UDP_BUFFER_SIZE);
-	//	auto dataSize = file->gcount();
-	//	//std::cout << packageNumber << std::endl;
-
-	//	AddNumberToDatagram(buffer, dataSize, packageNumber);
-	//	//SendRawDataTo(_udp_socket, buffer, dataSize + UDP_NUMBER_SIZE, metadata->addr);
-	//	
-	//	if (--metadata->packagesTillDrop <= 0) {
-	//		RemoveUDPClient(client);
-	//		std::cout << "UDP client disconnected." << std::endl;
-	//		if (client == this->udpClients.end()) break;
-	//	}
-	//	if (file->eof() ||
-	//		(!metadata->returnAllPackages && metadata->missedPackages.size() == 0)) {
-	//		RemoveUDPClient(client);
-	//		std::cout << "UDP sending finished." << std::endl;
-	//		if (client == this->udpClients.end()) break;
-	//	}
-	//}
-}
-
-void Server::RemoveUDPClient(std::vector<UDPMetadata*>::iterator& iter)
-{
-	/*auto clientInfo = *iter;
-	clientInfo->file->close();
-	delete clientInfo->file;
-	delete clientInfo->addr;
-	iter = this->udpClients.erase(iter);*/
 }
 
 bool Server::IsACK(sockaddr* client, UDPMetadata* metadata) {
@@ -289,80 +218,6 @@ void Server::OpenFile(std::fstream *file, std::string fileName)
 	}
 }
 
-void Server::RemoveTCPClient(std::vector<CLIENT_INFO>::iterator& iter)
-{
-	auto clientInfo = *iter;
-	FD_CLR(clientInfo->first, &this->clientsSet);
-	clientInfo->second->close();
-	shutdown(clientInfo->first, SD_BOTH);
-	closesocket(clientInfo->first);
-	iter = this->tcpClients.erase(iter);
-}
-
-void Server::SendBlock(CLIENT_INFO clientInfo)
-{
-	char buffer[BUFFER_SIZE];
-	auto file = clientInfo->second;
-	try {
-		while (file)
-		{
-			file->read(buffer, BUFFER_SIZE);
-			size_t read = file->gcount();
-			size_t realySent = SendRawData(clientInfo->first, buffer, read);
-			if (realySent != read)
-			{
-				fpos_t pos = file->tellg();
-				file->seekg(pos - (read - realySent));
-			}
-		}
-	} catch(std::runtime_error e) {
-		
-	}
-	FD_CLR(clientInfo->first, &clientsSet);
-	file->close();
-	shutdown(clientInfo->first, SD_BOTH);
-	closesocket(clientInfo->first);
-}
-
-void Server::SendFilePartsTCP(fd_set& clients)
-{
-	for (auto client = this->tcpClients.begin(); client != this->tcpClients.end(); ++client)
-	{
-		if (FD_ISSET((*client)->first, &clients) > 0)
-		{
-			try {
-				SendBlock(*client);
-			}
-			catch (std::runtime_error e) {
-				std::cout << e.what() << std::endl;
-				RemoveTCPClient(client);
-				std::cout << CLIENTS_ONLINE;
-				if (client == this->tcpClients.end()) break;
-			}
-		}
-	}
-}
-
-void Server::AddTCPClient()
-{
-	auto client = Accept();
-	auto metadata = ExtractMetadata(ReceiveMessage(client));
-	auto file = new std::fstream();
-	try {
-		OpenFile(file, metadata.fileName);
-	}
-	catch (std::runtime_error e) {
-		SendMessage(client, e.what());
-		throw;
-	}
-	SendMessage(client, std::to_string(GetFileSize(file)));
-	file->seekg(metadata.progress);
-	FD_SET(client, &this->clientsSet);
-	this->tcpClients.push_back(new std::pair<SOCKET, std::fstream*>(client, file));
-	std::thread thr(SendBlock, new std::pair<SOCKET, std::fstream*>(client, file));
-	thr.detach();
-}
-
 void Server::StartNewProcess(std::string processType)
 {
 	auto commandLine = std::string(" ") + CHILD + std::string(" ") + processType;
@@ -378,86 +233,27 @@ void Server::StartNewProcess(std::string processType)
 #endif
 }
 
-SharedMemoryDescriptor Server::CreateSharedMemory(size_t size, const std::string& name)
-{
-	SharedMemoryDescriptor result;
-
-	result.name = name;
-	result.size = size;
-#ifdef _WIN32
-	result.handle = CreateFileMapping(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, size, name.c_str());
-	result.memory = MapViewOfFile(result.handle, FILE_MAP_ALL_ACCESS, 0, 0, size);
-#else
-	result.handle = shm_open(name.c_str(), O_CREAT | O_RDWR | O_TRUNC, S_IRWXU | S_IRGRP | S_IROTH);
-	ftruncate(result.handle, size);
-	result.memory = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, result.handle, 0);
-#endif
-	return result;
-}
-
-SharedMemoryDescriptor Server::OpenSharedMemory(size_t size, const std::string& name)
-{
-	SharedMemoryDescriptor result;
-
-	result.name = name;
-	result.size = size;
-#ifdef _WIN32
-	result.handle = OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, name.c_str());
-	result.memory = MapViewOfFile(result.handle, FILE_MAP_ALL_ACCESS, 0, 0, size);
-#else
-	result.handle = shm_open(name.c_str(), O_RDWR, 0);
-	result.memory = mmap(nullptr, size, PROT_READ, MAP_SHARED, result.handle, 0);
-#endif
-	return result;
-}
-
-void Server::RemoveSharedMemory(SharedMemoryDescriptor& desc)
-{
-#ifdef _WIN32
-	UnmapViewOfFile(desc.memory);
-	CloseHandle(desc.handle);
-#else
-	shm_unlink(desc.name.c_str());
-	munmap(desc.memory, desc.size);
-#endif
-}
-
 void Server::Run()
 {
-	auto nullDelay = new timeval();
-	//nullDelay->tv_usec = 1;
 	while (true)
 	{
-		//auto clients = this->clientsSet;
 		auto servers = this->serverSet;
-		auto count = select(FD_SETSIZE, &servers, NULL, NULL, /*this->udpClients.size() != 0 ? nullDelay :*/ NULL);
-		//if (this->udpClients.size() != 0) SendFilePartsUDP();
+		auto count = select(FD_SETSIZE, &servers, NULL, NULL, NULL);
 		if (count <= 0) continue;
 		if (FD_ISSET(this->_tcp_socket, &servers) > 0)
 		{
-			count--;
 			StartNewProcess(TCP);
-			Sleep(100000);
-			//AddTCPClient();
-			//std::cout << CLIENTS_ONLINE;
+			Sleep(1000);	//delay to ensure the child accepts connection
 		}
 		if (FD_ISSET(_udp_socket, &servers) > 0)
 		{
-			count--;
 			StartNewProcess(UDP);
-			Sleep(100000);
-			//StartNewProcess(_udp_socket, UDP);
-			//AddUDPClient();
-			//std::cout << CLIENTS_ONLINE;
+			Sleep(100000);	// anti-BSOD
 		}
-		/*if (count > 0)
-		{
-			SendFilePartsTCP(clients);
-		}*/
 	}
 }
 
 Server::~Server() {
-	RemoveSharedMemory(tcpSharedMemory);
-	RemoveSharedMemory(udpSharedMemory);
+	SharedMemoryManager::RemoveSharedMemory(tcpSharedMemory);
+	SharedMemoryManager::RemoveSharedMemory(udpSharedMemory);
 }

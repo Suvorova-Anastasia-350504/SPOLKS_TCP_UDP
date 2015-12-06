@@ -1,6 +1,7 @@
 #include "Server.h"
 #include "UDPClient.h"
 #include "TCPClient.h"
+#include "TCPSender.h"
 #include <conio.h>
 
 //just for Windows
@@ -75,11 +76,17 @@ void startAsMain(char** argv) {
 }
 
 void startAsChild(char **argv) {
-	if (std::string(argv[2]) == UDP) {
-		cout << UDP << endl;
-	} else {
-		cout << TCP << endl;
-		//TODO recieve TCP file
+	try {
+	
+		if (std::string(argv[2]) == UDP) {
+			cout << UDP << endl;
+			// TODO : tcp
+		} else {
+			cout << TCP << endl;
+			auto tcpSender = new TCPSender();
+		}
+	} catch(exception e) {
+		cout << e.what() << endl;
 	}
 }
 
