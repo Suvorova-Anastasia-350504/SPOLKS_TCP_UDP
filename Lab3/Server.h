@@ -3,6 +3,10 @@
 #define CLIENTS_ONLINE "Clients online : " << this->tcpClients.size() + this->udpClients.size() << std::endl
 #define CLIENT_INFO std::pair<SOCKET, std::fstream*>*
 
+#ifdef __unix__
+extern char **environ;
+#endif
+
 struct TCPMetadata {
 	std::string fileName;
 	fpos_t progress;
@@ -24,6 +28,8 @@ struct UDPMetadata {
 
 class Server : public Base
 {
+	std::string executablePath;
+
 	std::vector<CLIENT_INFO> tcpClients;
 	std::vector<std::pair<std::mutex*, UDPMetadata*>*> udpClients;
 	std::vector<std::thread*> threads;
@@ -36,6 +42,7 @@ class Server : public Base
 	void Bind(SOCKET socket);	
 	fpos_t GetFileSize(std::fstream *file);
 	sockaddr_in* CreateAddressInfoForServer();
+	void StartNewProcess(SOCKET &socket, std::string processType);
 
 	//UDP
 	void AddUDPClient();
@@ -55,7 +62,7 @@ class Server : public Base
 	void RemoveTCPClient(std::vector<CLIENT_INFO>::iterator& iter);
 	static void SendBlock(CLIENT_INFO clientInfo);
 public:
-	Server(unsigned int port = DEFAULT_PORT);
+	Server(std::string executablePath, unsigned int port = DEFAULT_PORT);
 	void Run();
 };
 

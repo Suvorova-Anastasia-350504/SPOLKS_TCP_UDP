@@ -23,10 +23,10 @@ void ReleaseNetwork()
 #endif
 }
 
-void startAsServer()
+void startAsServer(std::string path)
 {
 	try {
-		auto server = new Server();
+		auto server = new Server(path);
 		server->Run();
 		delete server;
 	}
@@ -60,14 +60,14 @@ void startAsClient()
 	delete client;
 }
 
-void startAsMain() {
+void startAsMain(char** argv) {
 	string mode = "", type;
 	cout << "'s' for server mode" << endl;
 	cin >> mode;
 
 	switch (mode[0]) {
 	case 's':
-		startAsServer();
+		startAsServer(argv[0]);
 		break;
 	default:
 		startAsClient();
@@ -89,7 +89,7 @@ int main(int argc, char **argv)
 	if (std::string(argv[0]) == CHILD) {
 		startAsChild(argv);
 	} else {
-		startAsMain();
+		startAsMain(argv);
 	}
 
 	ReleaseNetwork();

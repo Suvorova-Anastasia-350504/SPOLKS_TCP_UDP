@@ -3,10 +3,11 @@
 std::mutex Server::udpMutex;
 fd_set Server::clientsSet;
 
-Server::Server(unsigned int port)
+Server::Server(std::string executablePath, unsigned int port)
 {
 	this->port = port;
-	
+	this->executablePath = executablePath;
+
 	_udp_socket = CreateUDPSocket();
 	CreateTCPSocket();
 	Bind(_udp_socket);
@@ -355,6 +356,30 @@ void Server::AddTCPClient()
 	this->tcpClients.push_back(new std::pair<SOCKET, std::fstream*>(client, file));
 	std::thread thr(SendBlock, new std::pair<SOCKET, std::fstream*>(client, file));
 	thr.detach();
+}
+
+void Server::StartNewProcess(SOCKET& socket, std::string processType)
+{
+	//ChildProcessData data;
+	//helpers::SharedMemoryDescriptor desc = helpers::createSharedMemory(sizeof(data), "child" + std::to_string(childMemoryId));
+	//std::string typeString = type == SocketType::TCP ? "tcp" : "udp";
+
+	/*sharedData.push_back(desc);
+	data.shutdown = &shutdown;
+	data.socket = socket.getSocket();
+	socket.Invalidate();
+	childMemoryId++;
+	memcpy(desc.memory, &data, sizeof(data));
+	processes.push_back(helpers::createProcess(executablePath, { "child", desc.name, typeString }));*/
+	auto commandLine = processType;
+	//TODO : create shared memory for socket share!.
+	PROCESS_INFORMATION process;
+#ifdef _WIN32
+	CreateProcessA(executablePath.c_str(), LPSTR(commandLine.c_str()), nullptr,
+		nullptr, TRUE, 0, nullptr, nullptr, /*&process.si*/ NULL, &process);
+#else
+	posix_spawn(&process, executablePath.c_str(), nullptr, nullptr, commandLine.c_str(), environ);
+#endif
 }
 
 void Server::Run()
