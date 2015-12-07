@@ -8,49 +8,22 @@
 extern char **environ;
 #endif
 
-struct TCPMetadata {
-	std::string fileName;
-	fpos_t progress;
-};
-
-struct UDPMetadata {
-	std::string fileName;
-	fpos_t progress;
-	sockaddr *addr;
-	fpos_t packagesTillDrop;
-	std::fstream *file;
-	bool requestFileSize;
-	std::vector<fpos_t> missedPackages;
-	fpos_t delay;
-	fpos_t currentDelay;
-	bool returnAllPackages;
-	fpos_t lastProgress;
-};
+struct UDPMetadata;
 
 class Server : public Base
 {
 	std::string executablePath;
 	SharedMemoryDescriptor tcpSharedMemory;
 	SharedMemoryDescriptor udpSharedMemory;
-
-	std::vector<std::pair<std::mutex*, UDPMetadata*>*> udpClients;
-
-	fd_set serverSet;
-
+	int nextFreePort;
 protected:		
+	fd_set serverSet;
 	void virtual OpenFile(std::fstream *file, std::string fileName) override;
 	void Bind(SOCKET socket);	
 	fpos_t GetFileSize(std::fstream *file);
 	sockaddr_in* CreateAddressInfoForServer();
 	void Listen();
-
 	void StartNewProcess(std::string processType);
-	
-	//UDP
-	void AddUDPClient();
-	static void SendFileViaUDP(std::pair<std::mutex*, UDPMetadata*>* _pair);
-	bool IsACK(sockaddr *client, UDPMetadata* rawMetadata);
-	UDPMetadata* ExtractMetadataUDP(char* rawMetadata);
 
 public:
 	Server();

@@ -4,6 +4,11 @@
 #include "Server.h"
 
 
+struct TCPMetadata {
+	std::string fileName;
+	fpos_t progress;
+};
+
 class TCPSender: public Server
 {
 	SOCKET socket;

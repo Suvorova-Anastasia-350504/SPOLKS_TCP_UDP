@@ -15,6 +15,7 @@ class UDPClient : public Client
 	vector<fpos_t> receivedPackages;
 	vector<fpos_t> missingPackages;
 
+	fpos_t maxReceivedPackageNumber = 0;
 	fstream* file;
 	string fileName;
 	fpos_t fileSize;
@@ -30,6 +31,7 @@ class UDPClient : public Client
 	fpos_t CreateMissingPackagesInfo(char* buffer, fpos_t bufferSize, bool requestAllPackages = false);
 	fpos_t CreateConnectionInfo(char* buffer, fpos_t bufferSize);
 	void InitMissingPackages();
+	fpos_t ParseMetaInfo(string message);
 protected:
 	fpos_t virtual ReceiveFileSize() override;
 	string CreateFileInfo(string fileName, fpos_t pos, int packageCount, bool request);

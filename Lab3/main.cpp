@@ -3,6 +3,7 @@
 #include "TCPClient.h"
 #include "TCPSender.h"
 #include <conio.h>
+#include "UDPSender.h"
 
 //just for Windows
 void InitializeNetwork()
@@ -76,11 +77,10 @@ void startAsMain(char** argv) {
 }
 
 void startAsChild(char **argv) {
-	try {
-	
+	try {	
 		if (std::string(argv[2]) == UDP) {
 			cout << UDP << endl;
-			// TODO : tcp
+			auto udpSender = new UDPSender(stoi(argv[3]));
 		} else {
 			cout << TCP << endl;
 			auto tcpSender = new TCPSender();
@@ -92,10 +92,10 @@ void startAsChild(char **argv) {
 
 int main(int argc, char **argv)
 {
-	InitializeNetwork();	
+	InitializeNetwork();
 	
 	if (argc > 1 && std::string(argv[1]) == CHILD) {
-		cout << "CHILD !" << endl;
+		cout << "CHILD" << endl;
 		startAsChild(argv);
 	} else {
 		startAsMain(argv);
